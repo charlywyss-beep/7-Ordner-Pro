@@ -64,6 +64,52 @@ def parse_version_tuple(ver_str):
     return tuple(int(x) for x in m.groups())
 
 
+def bump_patch_version(ver_str):
+    maj, min_v, pat = parse_version_tuple(ver_str)
+    if (maj, min_v, pat) == (0, 0, 0):
+        return "v1.0.49"
+    return f"v{maj}.{min_v}.{pat + 1}"
+
+
+def _auto_bump_version_in_repo(repo_dir, old_ver):
+    """Erhöht die Patch-Version (+1) in app.pyw & github_sync.py, wenn neue Änderungen committet werden."""
+    new_ver = bump_patch_version(old_ver)
+    changed_files = []
+    app_path = os.path.join(repo_dir, "app.pyw")
+    if os.path.isfile(app_path):
+        try:
+            content = open(app_path, "r", encoding="utf-8").read()
+            updated = re.sub(
+                r'^(APP_VERSION\s*=\s*["\'])v\d+\.\d+\.\d+(["\'])',
+                rf"\g<1>{new_ver}\g<2>",
+                content,
+                count=1,
+                flags=re.MULTILINE,
+            )
+            if updated != content:
+                with open(app_path, "w", encoding="utf-8") as f:
+                    f.write(updated)
+                changed_files.append("app.pyw")
+        except Exception:
+            pass
+    gs_path = os.path.join(repo_dir, "github_sync.py")
+    if os.path.isfile(gs_path):
+        try:
+            content = open(gs_path, "r", encoding="utf-8").read()
+            updated = re.sub(
+                r'(app_version\s*=\s*["\'])v\d+\.\d+\.\d+(["\'])',
+                rf"\g<1>{new_ver}\g<2>",
+                content,
+            )
+            if updated != content:
+                with open(gs_path, "w", encoding="utf-8") as f:
+                    f.write(updated)
+                changed_files.append("github_sync.py")
+        except Exception:
+            pass
+    return new_ver, changed_files
+
+
 def filter_meaningful_dirty_lines(porcelain_output):
     """Ignoriert Laufzeit-Dateien wie window_state.json und Cache für den Sync-Status."""
     ignored_prefixes = ("__pycache__/", "build/", "dist/")
@@ -95,7 +141,7 @@ def derive_github_urls(remote_url, branch="main"):
     }
 
 
-def get_git_info(app_version="v1.0.48"):
+def get_git_info(app_version="v1.0.49"):
     """Liest Git-Status, Versionsvergleich, Historie und Download-Links aus."""
     repo_dir = find_repo_dir()
     exe_path = os.path.join(repo_dir, EXE_FILENAME)
@@ -240,7 +286,7 @@ def get_git_info(app_version="v1.0.48"):
     return info
 
 
-def git_set_remote(remote_url, app_version="v1.0.48"):
+def git_set_remote(remote_url, app_version="v1.0.49"):
     repo_dir = find_repo_dir()
     url = (remote_url or "").strip()
     if not url:
@@ -255,7 +301,7 @@ def git_set_remote(remote_url, app_version="v1.0.48"):
         return {"success": False, "error": str(e)}
 
 
-def git_push_upload(app_version="v1.0.48"):
+def git_push_upload(app_version="v1.0.49"):
     """Erstellt bei Bedarf einen Commit (ohne window_state.json) und überträgt ihn nach GitHub."""
     repo_dir = find_repo_dir()
     logs = []
@@ -275,9 +321,18 @@ def git_push_upload(app_version="v1.0.48"):
             }
         _run_git(repo_dir, ["reset", "-q", "HEAD", "--", STATE_FILENAME])
 
+        effective_ver = app_version
         diff_res = _run_git(repo_dir, ["diff", "--cached", "--quiet"])
         if diff_res.returncode != 0:
-            commit_msg = f"{app_version}: Sync & Build nach GitHub ({datetime.now().strftime('%d.%m.%Y %H:%M')})"
+            head_res = _run_git(repo_dir, ["log", "-1", "--pretty=%s"])
+            head_ver = extract_version_tag(head_res.stdout or "")
+            if head_ver and parse_version_tuple(effective_ver) <= parse_version_tuple(head_ver):
+                new_ver, bumped_files = _auto_bump_version_in_repo(repo_dir, effective_ver)
+                effective_ver = new_ver
+                if bumped_files:
+                    _run_git(repo_dir, ["add", "--"] + bumped_files)
+                    logs.append(f"Version automatisch erhöht: {effective_ver}")
+            commit_msg = f"{effective_ver}: Sync & Build nach GitHub ({datetime.now().strftime('%d.%m.%Y %H:%M')})"
             c_res = _run_git(repo_dir, ["commit", "-m", commit_msg])
             c_out = (c_res.stdout + "\n" + c_res.stderr).strip()
             if c_out:
@@ -287,7 +342,7 @@ def git_push_upload(app_version="v1.0.48"):
                     "success": False,
                     "output": "\n".join(logs),
                     "message": "Commit fehlgeschlagen: " + (c_res.stderr.strip() or c_res.stdout.strip()),
-                    "git_info": get_git_info(app_version),
+                    "git_info": get_git_info(effective_ver),
                 }
 
         res = _run_git(repo_dir, ["push", "-u", "origin", branch], timeout=90)
@@ -296,7 +351,7 @@ def git_push_upload(app_version="v1.0.48"):
             logs.append(p_out)
 
         ok = res.returncode == 0
-        msg = f"Stand ({app_version}) erfolgreich nach GitHub hochgeladen!" if ok else p_out
+        msg = f"Stand ({effective_ver}) erfolgreich nach GitHub hochgeladen!" if ok else p_out
         if not ok and "Repository not found" in p_out:
             msg = "Das Repository existiert auf GitHub noch nicht. Bitte zuerst auf „Auf GitHub anlegen“ klicken und danach erneut hochladen."
 
@@ -304,13 +359,14 @@ def git_push_upload(app_version="v1.0.48"):
             "success": ok,
             "output": "\n\n".join([x for x in logs if x]).strip() or msg,
             "message": msg,
-            "git_info": get_git_info(app_version),
+            "new_version": effective_ver,
+            "git_info": get_git_info(effective_ver),
         }
     except Exception as e:
         return {"success": False, "error": str(e), "message": str(e), "git_info": get_git_info(app_version)}
 
 
-def git_pull_update(app_version="v1.0.48"):
+def git_pull_update(app_version="v1.0.49"):
     """Lädt den neuesten Stand von GitHub herunter (window_state.json bleibt erhalten)."""
     repo_dir = find_repo_dir()
     state_path = os.path.join(repo_dir, STATE_FILENAME)
@@ -352,7 +408,7 @@ def git_pull_update(app_version="v1.0.48"):
         return {"success": False, "error": str(e), "message": str(e), "git_info": get_git_info(app_version)}
 
 
-def git_rollback_version(commit_hash, app_version="v1.0.48"):
+def git_rollback_version(commit_hash, app_version="v1.0.49"):
     """Setzt sicher auf einen früheren Commit zurück (mit Git-Stash-Backup & window_state.json-Erhalt)."""
     repo_dir = find_repo_dir()
     commit_hash = (commit_hash or "").strip()

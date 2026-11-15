@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.48"
+APP_VERSION = "v1.0.49"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -639,10 +639,28 @@ def open_path_in_suchmaschine(target_path: str | Path | None = None, auto_start:
             reused_existing = False
 
     if not reused_existing:
-        try:
-            webbrowser.open(url)
-        except Exception:
-            pass
+        opened_app = False
+        if os.name == "nt":
+            edge_candidates = [
+                shutil.which("msedge") or "",
+                os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"), "Microsoft", "Edge", "Application", "msedge.exe"),
+                os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), "Microsoft", "Edge", "Application", "msedge.exe"),
+                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "Edge", "Application", "msedge.exe"),
+            ]
+            for edge_exe in edge_candidates:
+                if edge_exe and os.path.isfile(edge_exe):
+                    try:
+                        cflags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                        subprocess.Popen([edge_exe, f"--app={url}"], creationflags=cflags)
+                        opened_app = True
+                        break
+                    except Exception:
+                        pass
+        if not opened_app:
+            try:
+                webbrowser.open(url)
+            except Exception:
+                pass
 
     return {
         "success": True,
@@ -3303,7 +3321,8 @@ class GitHubSyncDialog(tk.Toplevel):
         top_t = tk.Frame(title_box, bg=p["bg"])
         top_t.pack(anchor="w")
         tk.Label(top_t, text="GitHub Versions-Aktualisierung", font=("Segoe UI", 13, "bold"), bg=p["bg"], fg=p["fg"]).pack(side="left")
-        tk.Label(top_t, text=f" {APP_VERSION} ", font=("Segoe UI", 9, "bold"), bg=badge_bg, fg=badge_fg, padx=6, pady=1).pack(side="left", padx=(8, 0))
+        self.lbl_dialog_ver = tk.Label(top_t, text=f" {APP_VERSION} ", font=("Segoe UI", 9, "bold"), bg=badge_bg, fg=badge_fg, padx=6, pady=1)
+        self.lbl_dialog_ver.pack(side="left", padx=(8, 0))
         tk.Label(title_box, text="Automatische Aktualisierung • Sync & Versions-Retour", font=("Segoe UI", 9), bg=p["bg"], fg=p["muted"]).pack(anchor="w")
 
         # 1. Sync Status Banner
@@ -3382,7 +3401,8 @@ class GitHubSyncDialog(tk.Toplevel):
         r1 = tk.Frame(repo_card, bg=p["card"])
         r1.pack(fill="x", pady=(0, 4))
         tk.Label(r1, text="App-Version (lokal):", font=("Segoe UI", 9), bg=p["card"], fg=p["muted"]).pack(side="left")
-        tk.Label(r1, text=APP_VERSION, font=("Consolas", 9, "bold"), bg=p["card"], fg="#10b981").pack(side="left", padx=(8, 28))
+        self.lbl_local_ver = tk.Label(r1, text=APP_VERSION, font=("Consolas", 9, "bold"), bg=p["card"], fg="#10b981")
+        self.lbl_local_ver.pack(side="left", padx=(8, 28))
         tk.Label(r1, text="Branch:", font=("Segoe UI", 9), bg=p["card"], fg=p["muted"]).pack(side="left")
         self.lbl_branch = tk.Label(r1, text="main", font=("Consolas", 9, "bold"), bg=p["card"], fg=p["fg"])
         self.lbl_branch.pack(side="left", padx=(8, 0))
@@ -3676,9 +3696,22 @@ class GitHubSyncDialog(tk.Toplevel):
         def _worker():
             res = github_sync.git_push_upload(APP_VERSION)
             def _done():
+                global APP_VERSION
                 self._busy = False
                 self.btn_push.update_style(text="⬆ Stand nach GitHub hochladen")
                 self._show_log(res.get("output") or res.get("message") or "")
+                nv = res.get("new_version")
+                if nv:
+                    APP_VERSION = nv
+                    self.title(f"GitHub Versions-Aktualisierung • {APP_VERSION}")
+                    if hasattr(self, "lbl_dialog_ver"):
+                        self.lbl_dialog_ver.configure(text=f" {APP_VERSION} ")
+                    if hasattr(self, "lbl_local_ver"):
+                        self.lbl_local_ver.configure(text=APP_VERSION)
+                    try:
+                        self.app.title(f"7-Ordner-System Organizer Pro  {APP_VERSION}")
+                    except Exception:
+                        pass
                 if res.get("git_info"):
                     self.refresh_git_info(res["git_info"])
                 self.app.refresh_git_badge()
