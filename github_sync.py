@@ -1,5 +1,6 @@
 import os
 import re
+import shutil
 import sys
 import subprocess
 from datetime import datetime
@@ -398,3 +399,114 @@ def git_rollback_version(commit_hash, app_version="v1.0.48"):
         }
     except Exception as e:
         return {"success": False, "error": str(e), "message": str(e)}
+
+
+def list_usb_drives(app_folder_name: str = "Ordner-Struktur", exe_name: str = EXE_FILENAME) -> list[dict]:
+    """Erkennt eingesteckte USB-Wechseldatenträger (DRIVE_REMOVABLE) inklusive Namen & Zielpfad."""
+    drives = []
+    if os.name != "nt":
+        return drives
+    try:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        mask = k32.GetLogicalDrives()
+        for idx in range(26):
+            if not (mask & (1 << idx)):
+                continue
+            letter = chr(ord("A") + idx)
+            root = f"{letter}:\\"
+            if k32.GetDriveTypeW(root) != 2:  # DRIVE_REMOVABLE
+                continue
+            vol_buf = ctypes.create_unicode_buffer(261)
+            ok_vol = k32.GetVolumeInformationW(root, vol_buf, 260, None, None, None, None, 0)
+            label = vol_buf.value.strip() if ok_vol and vol_buf.value else "USB-Stick"
+            free_gb = 0.0
+            try:
+                usage = shutil.disk_usage(root)
+                free_gb = round(usage.free / (1024 ** 3), 1)
+            except OSError:
+                pass
+            default_dir = os.path.join(root, "Tools", app_folder_name)
+            has_exe = os.path.isfile(os.path.join(default_dir, exe_name))
+            drives.append({
+                "drive": root,
+                "letter": letter,
+                "label": label,
+                "display": f"{label} ({letter}:)",
+                "free_gb": free_gb,
+                "default_dir": default_dir,
+                "has_exe": has_exe,
+            })
+    except Exception:
+        pass
+    return drives
+
+
+def _resolve_usb_app_dir(target_root: str, app_folder: str = "Ordner-Struktur", exe_name: str = EXE_FILENAME) -> str:
+    raw = os.path.normpath(str(target_root or "").strip())
+    if re.fullmatch(r"[A-Za-z]:\\?", raw):
+        drive = raw[:2] + "\\"
+        return os.path.join(drive, "Tools", app_folder)
+    base_low = os.path.basename(raw).lower()
+    if base_low in {app_folder.lower(), "7-ordner-pro", "7_ordner_pro"}:
+        return raw
+    if os.path.isfile(os.path.join(raw, exe_name)):
+        return raw
+    return os.path.join(raw, app_folder)
+
+
+def deploy_exe_to_usb(target_root: str = "") -> dict:
+    """Erstellt den USB-Stick-Ordner (Tools\\Ordner-Struktur) und legt 7-Ordner-Pro.exe dort ab."""
+    exe_name = EXE_FILENAME
+    app_folder = "Ordner-Struktur"
+
+    candidates = []
+    if getattr(sys, "frozen", False):
+        candidates.append(sys.executable)
+    repo_dir = find_repo_dir()
+    candidates.extend([
+        os.path.join(repo_dir, exe_name),
+        os.path.join(repo_dir, "dist", exe_name),
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), exe_name),
+    ])
+    src_exe = next((p for p in candidates if p and os.path.isfile(p)), "")
+    if not src_exe:
+        return {"success": False, "error": f"Keine fertige {exe_name} gefunden."}
+
+    clean_target = (target_root or "").strip()
+    if not clean_target:
+        usb_list = list_usb_drives(app_folder, exe_name)
+        if not usb_list:
+            return {"success": False, "error": "Kein USB-Stick erkannt. Bitte USB-Stick einstecken oder Zielordner wählen."}
+        target_dir = usb_list[0]["default_dir"]
+    else:
+        target_dir = _resolve_usb_app_dir(clean_target, app_folder, exe_name)
+
+    dest_exe = os.path.join(target_dir, exe_name)
+    try:
+        if os.path.abspath(src_exe).lower() == os.path.abspath(dest_exe).lower():
+            return {
+                "success": True,
+                "already_there": True,
+                "target_dir": target_dir,
+                "target_exe": dest_exe,
+                "message": f"Die App läuft bereits direkt unter {dest_exe}.",
+            }
+        os.makedirs(target_dir, exist_ok=True)
+        existed_before = os.path.isfile(dest_exe)
+        tmp_exe = os.path.join(target_dir, f".{exe_name}.{os.getpid()}.tmp")
+        shutil.copy2(src_exe, tmp_exe)
+        os.replace(tmp_exe, dest_exe)
+        size_mb = f"{os.path.getsize(dest_exe) / (1024 * 1024):.1f} MB"
+        verb = "aktualisiert" if existed_before else "neu angelegt & abgelegt"
+        return {
+            "success": True,
+            "already_there": False,
+            "existed_before": existed_before,
+            "target_dir": target_dir,
+            "target_exe": dest_exe,
+            "size_mb": size_mb,
+            "message": f"{exe_name} ({size_mb}) erfolgreich in {target_dir} {verb}!",
+        }
+    except Exception as exc:
+        return {"success": False, "error": f"Kopieren auf USB-Stick fehlgeschlagen: {exc}"}

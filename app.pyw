@@ -3318,9 +3318,11 @@ class GitHubSyncDialog(tk.Toplevel):
             tk.Label(sc, text=st_head, font=("Segoe UI", 9, "bold"), bg=p["step_bg"], fg=step_title_fg, anchor="w").pack(anchor="w")
             tk.Label(sc, text=st_body, font=("Segoe UI", 8), bg=p["step_bg"], fg=p["muted"], anchor="w", justify="left", wraplength=195).pack(anchor="w")
 
+        usb_btn_row = tk.Frame(usb_card, bg=p["usb_bg"])
+        usb_btn_row.pack(fill="x")
         self.btn_exe_dl = ModernRoundedButton(
-            usb_card,
-            text="⬇ Neueste 7-Ordner-Pro.exe herunterladen",
+            usb_btn_row,
+            text="⬇ 7-Ordner-Pro.exe laden",
             command=self._open_exe_download,
             bg="#059669",
             fg="#ffffff",
@@ -3328,11 +3330,26 @@ class GitHubSyncDialog(tk.Toplevel):
             border_color="#059669",
             font=("Segoe UI", 9, "bold"),
             r=8,
-            padx=14,
+            padx=12,
             pady=7,
-            min_width=720,
+            min_width=355,
         )
-        self.btn_exe_dl.pack(fill="x")
+        self.btn_exe_dl.pack(side="left", padx=(0, 8))
+        self.btn_usb_deploy = ModernRoundedButton(
+            usb_btn_row,
+            text="💾 Auf USB-Stick ablegen",
+            command=self._deploy_to_usb,
+            bg="#0284c7",
+            fg="#ffffff",
+            hover_bg="#0369a1",
+            border_color="#0284c7",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=12,
+            pady=7,
+            min_width=355,
+        )
+        self.btn_usb_deploy.pack(side="right")
 
         # 3. Git Repo Status & URL
         repo_card = tk.Frame(root, bg=p["card"], highlightthickness=1, highlightbackground=p["border"], padx=12, pady=9)
@@ -3504,7 +3521,7 @@ class GitHubSyncDialog(tk.Toplevel):
         self.var_remote_url.set(data.get("remote_url") or github_sync.DEFAULT_REMOTE_URL)
 
         sz = data.get("exe_size_mb")
-        dl_lbl = f"⬇ Neueste 7-Ordner-Pro.exe herunterladen ({sz})" if sz else "⬇ Neueste 7-Ordner-Pro.exe herunterladen"
+        dl_lbl = f"⬇ 7-Ordner-Pro.exe laden ({sz})" if sz else "⬇ 7-Ordner-Pro.exe laden"
         self.btn_exe_dl.update_style(text=dl_lbl)
 
         if data.get("has_remote_ref"):
@@ -3564,6 +3581,47 @@ class GitHubSyncDialog(tk.Toplevel):
         url = (self.git_info.get("raw_exe_url") or "").strip()
         if url:
             webbrowser.open(url)
+
+    def _deploy_to_usb(self):
+        drives = github_sync.list_usb_drives()
+        target_dir = ""
+        if drives:
+            d0 = drives[0]
+            default_dir = d0["default_dir"]
+            if len(drives) == 1:
+                ok = self.app.confirm_action(
+                    "7-Ordner-Pro.exe auf USB-Stick ablegen",
+                    f"Erkannter USB-Stick: {d0['display']}",
+                    f"Zielordner: {default_dir}\\7-Ordner-Pro.exe\n"
+                    f"Der Ordner wird automatisch erstellt (falls noch nicht vorhanden). "
+                    f"Vorhandene Einstellungen (window_state.json) bleiben erhalten.",
+                    confirm_text="💾 Auf USB-Stick speichern",
+                    cancel_text="Anderen Ordner wählen...",
+                )
+                if ok:
+                    target_dir = default_dir
+                else:
+                    chosen = filedialog.askdirectory(parent=self, initialdir=d0["drive"], title="Zielordner für 7-Ordner-Pro.exe wählen")
+                    if not chosen:
+                        return
+                    target_dir = chosen
+            else:
+                chosen = filedialog.askdirectory(parent=self, initialdir=d0["drive"], title="USB-Stick / Zielordner wählen (Ordner-Struktur wird erstellt)")
+                if not chosen:
+                    return
+                target_dir = chosen
+        else:
+            chosen = filedialog.askdirectory(parent=self, title="Kein USB-Stick erkannt – Zielordner für 7-Ordner-Pro.exe wählen")
+            if not chosen:
+                return
+            target_dir = chosen
+
+        res = github_sync.deploy_exe_to_usb(target_dir)
+        self._show_log(res.get("message") or res.get("error") or "")
+        if res.get("success"):
+            self.app.show_notice("USB-Stick bereit", res.get("message") or "EXE gespeichert!", kind="success", auto_close_ms=3500)
+        else:
+            self.app.show_notice("USB-Speichern fehlgeschlagen", res.get("error") or "Konnte EXE nicht ablegen.", kind="warning")
 
     def _open_new_repo(self):
         if self.git_info.get("has_remote_ref"):
