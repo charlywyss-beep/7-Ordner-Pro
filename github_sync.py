@@ -15,14 +15,14 @@ _NO_WINDOW = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 
 
 def find_repo_dir():
     """Findet den lokalen Projektordner mit .git oder die App-Basis."""
-    candidates = []
     if getattr(sys, "frozen", False):
-        exe_dir = os.path.dirname(os.path.abspath(sys.executable))
-        candidates.append(exe_dir)
+        return os.path.dirname(os.path.abspath(sys.executable))
     here = os.path.dirname(os.path.abspath(__file__))
-    candidates.append(here)
-    candidates.append(os.getcwd())
-    candidates.append(r"C:\Users\01\.gemini\antigravity\scratch\Ordner-Struktur")
+    candidates = [
+        here,
+        os.getcwd(),
+        r"C:\Users\01\.gemini\antigravity\scratch\Ordner-Struktur",
+    ]
 
     for c in candidates:
         if c and os.path.exists(os.path.join(c, ".git")):
@@ -240,7 +240,7 @@ def fetch_remote_release_info(remote_url=None, branch="main", timeout=5):
     return res
 
 
-def get_git_info(app_version="v1.0.52"):
+def get_git_info(app_version="v1.0.53"):
     """Liest Git-Status, Versionsvergleich, Historie und Download-Links aus."""
     repo_dir = find_repo_dir()
     exe_path = os.path.join(repo_dir, EXE_FILENAME)
@@ -500,7 +500,7 @@ def git_push_upload(app_version="v1.0.51"):
         return {"success": False, "error": str(e), "message": str(e), "git_info": get_git_info(app_version)}
 
 
-def self_update_exe_from_github(app_version="v1.0.52", remote_url=None, branch="main"):
+def self_update_exe_from_github(app_version="v1.0.53", remote_url=None, branch="main"):
     """Dubeli-sicheres Direkt-Update der laufenden .exe von GitHub (USB-/Standalone-Modus ohne Git)."""
     import urllib.request
     import tempfile
@@ -656,7 +656,7 @@ def self_update_exe_from_github(app_version="v1.0.52", remote_url=None, branch="
     }
 
 
-def git_pull_update(app_version="v1.0.52"):
+def git_pull_update(app_version="v1.0.53"):
     """Lädt den neuesten Stand von GitHub herunter (window_state.json bleibt erhalten)."""
     repo_dir = find_repo_dir()
     if not repo_dir or not os.path.exists(os.path.join(repo_dir, ".git")):
