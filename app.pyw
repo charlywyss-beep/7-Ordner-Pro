@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.62"
+APP_VERSION = "v1.0.63"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -7777,7 +7777,7 @@ class App(tk.Tk):
 
         self.btn_step2_extra_onedrive = ModernRoundedButton(
             filter_row,
-            text="OneDrive",
+            text="in Cloud",
             command=self.toggle_step2_onedrive_filter,
             bg="#ffffff",
             fg="#475569",
@@ -7790,7 +7790,7 @@ class App(tk.Tk):
             icon_kind="cloud_onedrive",
         )
         self.btn_step2_extra_onedrive.pack(side="left", padx=(0, 6))
-        attach_tooltip(self.btn_step2_extra_onedrive, "Nur Dateien aus OneDrive-Ordnern im Ergebnis anzeigen (ohne Cloud von iCloud/Dropbox)")
+        attach_tooltip(self.btn_step2_extra_onedrive, "Nur Dateien in Cloud-Ordnern (OneDrive, iCloud, Dropbox, Google Drive oder Online-Platzhalter) im Ergebnis anzeigen")
 
         tk.Frame(filter_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 6))
 
@@ -8720,19 +8720,31 @@ class App(tk.Tk):
                 ext_dot = f".{raw_ext}" if raw_ext and raw_ext not in ("ordner", "datei") else ""
 
         if only_onedrive:
-            in_onedrive = False
-            src_str_low = str(item.get("source_path", "")).lower()
-            parts_low = [pt.strip() for pt in src_str_low.replace("/", "\\").split("\\") if pt.strip()]
-            if any(pt == "onedrive" or pt.startswith("onedrive -") or pt.startswith("onedrive-") for pt in parts_low):
-                in_onedrive = True
-            elif onedrive_roots and src_p is not None:
+            in_cloud = bool(item.get("is_cloud_only"))
+            if not in_cloud:
+                src_str_low = str(item.get("source_path", "")).lower()
+                parts_low = [pt.strip() for pt in src_str_low.replace("/", "\\").split("\\") if pt.strip()]
+                cloud_exact = {
+                    "onedrive", "iclouddrive", "icloud drive", "icloud",
+                    "dropbox", "google drive", "googledrive",
+                    "nextcloud", "owncloud", "pcloud", "mega", "tresorit", "hidrive", "magenta cloud",
+                }
+                if any(
+                    pt in cloud_exact
+                    or pt.startswith("onedrive -")
+                    or pt.startswith("onedrive-")
+                    or pt.startswith("dropbox (")
+                    for pt in parts_low
+                ):
+                    in_cloud = True
+            if not in_cloud and onedrive_roots and src_p is not None:
                 try:
                     p_obj = Path(src_p)
                     if any(root == p_obj or root in p_obj.parents for root in onedrive_roots):
-                        in_onedrive = True
+                        in_cloud = True
                 except Exception:
                     pass
-            if not in_onedrive:
+            if not in_cloud:
                 return False
 
         if file_mode == "no_images":
