@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.61"
+APP_VERSION = "v1.0.62"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -6664,11 +6664,11 @@ class App(tk.Tk):
         self._preview_row_order = []  # geordnete tree_ids fuer verlustfreie Filter/Sortierung
         self.step2_search_var = tk.StringVar(value="")
         self.step2_filter_chip = "all"
-        self.step2_file_filter_mode = "all"  # "all", "no_images", "only_images"
+        self.step2_file_filter_mode = "all"  # "all", "no_images", "only_images", "installers", "media"
+        self.step2_only_onedrive = False
         self.step2_date_from_var = tk.StringVar(value="")
         self.step2_date_to_var = tk.StringVar(value="")
         self.step2_min_size_var = tk.StringVar(value="")
-        self._step2_scanned_extras = {"installers": False, "media": False, "onedrive": False}
         self._suppress_step2_filter_trace = False
         self._step2_filter_after_id = None
         self.step2_search_var.trace_add("write", lambda *_a: self._schedule_step2_filter())
@@ -7752,9 +7752,11 @@ class App(tk.Tk):
             ("all", "Alle", "all_files"),
             ("no_images", "Ohne Bilder", "doc_only"),
             ("only_images", "Nur Bilder", "images_only"),
+            ("installers", "Programme", "installer_app"),
+            ("media", "Videos & Audio", "media_video"),
         ]
         self.step2_file_filter_buttons = {}
-        for idx, (f_mode, f_lbl, f_icon) in enumerate(self._step2_file_filter_specs):
+        for f_mode, f_lbl, f_icon in self._step2_file_filter_specs:
             is_def = (f_mode == "all")
             f_btn = ModernRoundedButton(
                 filter_row,
@@ -7770,8 +7772,25 @@ class App(tk.Tk):
                 pady=4,
                 icon_kind=f_icon,
             )
-            f_btn.pack(side="left", padx=(0, 3 if idx < len(self._step2_file_filter_specs) - 1 else 6))
+            f_btn.pack(side="left", padx=(0, 3))
             self.step2_file_filter_buttons[f_mode] = f_btn
+
+        self.btn_step2_extra_onedrive = ModernRoundedButton(
+            filter_row,
+            text="OneDrive",
+            command=self.toggle_step2_onedrive_filter,
+            bg="#ffffff",
+            fg="#475569",
+            hover_bg="#f1f5f9",
+            border_color="#cbd5e1",
+            font=("Segoe UI", 9),
+            r=8,
+            padx=6,
+            pady=4,
+            icon_kind="cloud_onedrive",
+        )
+        self.btn_step2_extra_onedrive.pack(side="left", padx=(0, 6))
+        attach_tooltip(self.btn_step2_extra_onedrive, "Nur Dateien aus OneDrive-Ordnern im Ergebnis anzeigen (ohne Cloud von iCloud/Dropbox)")
 
         tk.Frame(filter_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 6))
 
@@ -7847,60 +7866,7 @@ class App(tk.Tk):
             padx=7,
             pady=4,
         )
-        self.btn_step2_size_preset.pack(side="left", padx=(0, 6))
-
-        tk.Frame(filter_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 6))
-
-        self.btn_step2_extra_installers = ModernRoundedButton(
-            filter_row,
-            text="Programme",
-            command=lambda: self.toggle_step2_extra_type("installers"),
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=6,
-            pady=4,
-            icon_kind="installer_app",
-        )
-        self.btn_step2_extra_installers.pack(side="left", padx=(0, 3))
-        attach_tooltip(self.btn_step2_extra_installers, "Installer (.exe, .msi, .msix) anzeigen / einbeziehen")
-
-        self.btn_step2_extra_media = ModernRoundedButton(
-            filter_row,
-            text="Videos & Audio",
-            command=lambda: self.toggle_step2_extra_type("media"),
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=6,
-            pady=4,
-            icon_kind="media_video",
-        )
-        self.btn_step2_extra_media.pack(side="left", padx=(0, 3))
-        attach_tooltip(self.btn_step2_extra_media, "Videos & Audio (.mp4, .mkv, .mp3 …) anzeigen / einbeziehen")
-
-        self.btn_step2_extra_onedrive = ModernRoundedButton(
-            filter_row,
-            text="OneDrive",
-            command=lambda: self.toggle_step2_extra_type("onedrive"),
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=6,
-            pady=4,
-            icon_kind="cloud_onedrive",
-        )
-        self.btn_step2_extra_onedrive.pack(side="left", padx=(0, 0))
-        attach_tooltip(self.btn_step2_extra_onedrive, "OneDrive & Cloud-Dateien anzeigen / einbeziehen")
+        self.btn_step2_size_preset.pack(side="left", padx=(0, 0))
 
         # Trennlinie
         sep_tb = tk.Frame(tb_card, bg="#f1f5f9", height=1)
@@ -8478,7 +8444,17 @@ class App(tk.Tk):
         self.apply_step2_filters()
 
     def set_step2_file_filter_mode(self, mode: str):
-        self.step2_file_filter_mode = mode if mode in {"all", "no_images", "only_images"} else "all"
+        valid = {"all", "no_images", "only_images", "installers", "media"}
+        target = mode if mode in valid else "all"
+        if target != "all" and getattr(self, "step2_file_filter_mode", "all") == target:
+            self.step2_file_filter_mode = "all"
+        else:
+            self.step2_file_filter_mode = target
+        self.update_step2_detail_filter_ui()
+        self.apply_step2_filters()
+
+    def toggle_step2_onedrive_filter(self):
+        self.step2_only_onedrive = not bool(getattr(self, "step2_only_onedrive", False))
         self.update_step2_detail_filter_ui()
         self.apply_step2_filters()
 
@@ -8624,26 +8600,6 @@ class App(tk.Tk):
             y = self.winfo_rooty() + 140
         FluentPopupMenu(self, menu_items, x, y)
 
-    def toggle_step2_extra_type(self, kind: str):
-        var_map = {
-            "installers": self.include_installers_var,
-            "media": self.include_media_var,
-            "onedrive": self.include_onedrive_var,
-        }
-        var = var_map.get(kind)
-        if var is None:
-            return
-        new_val = not bool(var.get())
-        var.set(new_val)
-        self.update_extra_type_ui()
-        self._save_app_state()
-        scanned = getattr(self, "_step2_scanned_extras", {})
-        if new_val and not scanned.get(kind, False) and self.frame_step2.winfo_manager() and not getattr(self, "_is_scanning", False):
-            # Gruppe war beim letzten Scan ausgeschlossen -> direkt nachscannen
-            self.refresh_preview()
-        else:
-            self.apply_step2_filters()
-
     def update_step2_detail_filter_ui(self):
         neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
         active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
@@ -8701,28 +8657,18 @@ class App(tk.Tk):
             else:
                 self.btn_step2_size_preset.update_style(text="Größe ▾", **neutral_kw)
 
-        if hasattr(self, "btn_step2_extra_installers"):
-            self.btn_step2_extra_installers.update_style(**(active_kw if self.include_installers_var.get() else neutral_kw))
-        if hasattr(self, "btn_step2_extra_media"):
-            self.btn_step2_extra_media.update_style(**(active_kw if self.include_media_var.get() else neutral_kw))
         if hasattr(self, "btn_step2_extra_onedrive"):
-            self.btn_step2_extra_onedrive.update_style(**(active_kw if self.include_onedrive_var.get() else neutral_kw))
+            self.btn_step2_extra_onedrive.update_style(**(active_kw if getattr(self, "step2_only_onedrive", False) else neutral_kw))
 
     def _has_active_step2_filters(self) -> bool:
-        scanned = getattr(self, "_step2_scanned_extras", {})
-        hidden_scanned_extra = (
-            (scanned.get("installers", False) and not self.include_installers_var.get())
-            or (scanned.get("media", False) and not self.include_media_var.get())
-            or (scanned.get("onedrive", False) and not self.include_onedrive_var.get())
-        )
         return bool(
             getattr(self, "step2_filter_chip", "all") != "all"
             or self.step2_search_var.get().strip()
             or getattr(self, "step2_file_filter_mode", "all") != "all"
+            or getattr(self, "step2_only_onedrive", False)
             or self.step2_date_from_var.get().strip()
             or self.step2_date_to_var.get().strip()
             or self.step2_min_size_var.get().strip()
-            or hidden_scanned_extra
         )
 
     def clear_step2_filters(self):
@@ -8734,20 +8680,7 @@ class App(tk.Tk):
             self._step2_filter_after_id = None
         self.step2_filter_chip = "all"
         self.step2_file_filter_mode = "all"
-        scanned = getattr(self, "_step2_scanned_extras", {})
-        extras_changed = False
-        if scanned.get("installers", False) and not self.include_installers_var.get():
-            self.include_installers_var.set(True)
-            extras_changed = True
-        if scanned.get("media", False) and not self.include_media_var.get():
-            self.include_media_var.set(True)
-            extras_changed = True
-        if scanned.get("onedrive", False) and not self.include_onedrive_var.get():
-            self.include_onedrive_var.set(True)
-            extras_changed = True
-        if extras_changed:
-            self.update_extra_type_ui()
-            self._save_app_state()
+        self.step2_only_onedrive = False
         self._suppress_step2_filter_trace = True
         try:
             for var in (
@@ -8770,9 +8703,7 @@ class App(tk.Tk):
         dt_from,
         dt_to,
         min_bytes: int | None,
-        show_installers: bool = True,
-        show_media: bool = True,
-        show_onedrive: bool = True,
+        only_onedrive: bool = False,
         onedrive_roots: list[Path] | None = None,
     ) -> bool:
         is_dir = bool(item.get("is_dir"))
@@ -8788,30 +8719,33 @@ class App(tk.Tk):
                 raw_ext = str(item.get("ext", "")).strip().lower()
                 ext_dot = f".{raw_ext}" if raw_ext and raw_ext not in ("ordner", "datei") else ""
 
-        if not show_installers and not is_dir and ext_dot in INSTALLER_EXTENSIONS:
-            return False
-        if not show_media and not is_dir and ext_dot in MEDIA_EXTENSIONS:
-            return False
-        if not show_onedrive:
-            if item.get("is_cloud_only"):
-                return False
+        if only_onedrive:
+            in_onedrive = False
             src_str_low = str(item.get("source_path", "")).lower()
             parts_low = [pt.strip() for pt in src_str_low.replace("/", "\\").split("\\") if pt.strip()]
             if any(pt == "onedrive" or pt.startswith("onedrive -") or pt.startswith("onedrive-") for pt in parts_low):
-                return False
-            if onedrive_roots and src_p is not None:
+                in_onedrive = True
+            elif onedrive_roots and src_p is not None:
                 try:
                     p_obj = Path(src_p)
                     if any(root == p_obj or root in p_obj.parents for root in onedrive_roots):
-                        return False
+                        in_onedrive = True
                 except Exception:
                     pass
-
-        if file_mode in ("no_images", "only_images"):
-            is_img = (not is_dir) and (ext_dot in IMAGE_EXTENSIONS)
-            if file_mode == "no_images" and is_img:
+            if not in_onedrive:
                 return False
-            if file_mode == "only_images" and not is_img:
+
+        if file_mode == "no_images":
+            if (not is_dir) and (ext_dot in IMAGE_EXTENSIONS):
+                return False
+        elif file_mode == "only_images":
+            if is_dir or (ext_dot not in IMAGE_EXTENSIONS):
+                return False
+        elif file_mode == "installers":
+            if is_dir or (ext_dot not in INSTALLER_EXTENSIONS):
+                return False
+        elif file_mode == "media":
+            if is_dir or (ext_dot not in MEDIA_EXTENSIONS):
                 return False
 
         if dt_from is not None or dt_to is not None:
@@ -8906,10 +8840,8 @@ class App(tk.Tk):
         except ValueError:
             min_bytes = None
 
-        show_installers = bool(self.include_installers_var.get())
-        show_media = bool(self.include_media_var.get())
-        show_onedrive = bool(self.include_onedrive_var.get())
-        onedrive_roots = [] if show_onedrive else get_onedrive_roots()
+        only_onedrive = bool(getattr(self, "step2_only_onedrive", False))
+        onedrive_roots = get_onedrive_roots() if only_onedrive else []
 
         # Chip-Zaehler ueber alle Vorschau-Eintraege aktualisieren
         counts = {"all": 0, "dups": 0, "inbox": 0, "cloud": 0, "deleted": 0}
@@ -8936,9 +8868,7 @@ class App(tk.Tk):
                     dt_from,
                     dt_to,
                     min_bytes,
-                    show_installers=show_installers,
-                    show_media=show_media,
-                    show_onedrive=show_onedrive,
+                    only_onedrive=only_onedrive,
                     onedrive_roots=onedrive_roots,
                 )
             ):
@@ -10280,7 +10210,6 @@ class App(tk.Tk):
             self.btn_extra_sysguard.update_style(**(active_kw if self.exclude_system_dirs_var.get() else neutral_kw))
         if hasattr(self, "btn_extra_firmguard"):
             self.btn_extra_firmguard.update_style(**(active_kw if self.network_guard_var.get() else neutral_kw))
-        self.update_step2_detail_filter_ui()
 
     @staticmethod
     def _compute_date_preset_range(preset_key: str, today: datetime.date | None = None):
@@ -11225,6 +11154,7 @@ class App(tk.Tk):
         if not is_refresh:
             self.step2_filter_chip = "all"
             self.step2_file_filter_mode = "all"
+            self.step2_only_onedrive = False
             self._suppress_step2_filter_trace = True
             try:
                 for var in (
@@ -11247,12 +11177,6 @@ class App(tk.Tk):
 
         found_files = worker_out["found_files"]
         self._last_scan_snapshot = worker_out["snapshot"]
-        self._step2_scanned_extras = {
-            "installers": inc_installers,
-            "media": inc_media,
-            "onedrive": inc_onedrive,
-        }
-        self.update_step2_detail_filter_ui()
         all_items = worker_out["all_items"]
 
         if not found_files:
