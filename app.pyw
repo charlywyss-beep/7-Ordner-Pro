@@ -3485,6 +3485,11 @@ class GitHubSyncDialog(tk.Toplevel):
         dl_lbl = f"⬇ Neueste 7-Ordner-Pro.exe herunterladen ({sz})" if sz else "⬇ Neueste 7-Ordner-Pro.exe herunterladen"
         self.btn_exe_dl.update_style(text=dl_lbl)
 
+        if data.get("has_remote_ref"):
+            self.btn_new_repo.update_style(text="🌐 Auf GitHub öffnen ↗")
+        else:
+            self.btn_new_repo.update_style(text="🌐 Auf GitHub anlegen ↗")
+
         st = data.get("sync_state") or "no_git"
         if st in ("local_newer", "local_ahead"):
             b_bg = "#451a03" if self._dark else "#fffbeb"
@@ -3539,6 +3544,13 @@ class GitHubSyncDialog(tk.Toplevel):
             webbrowser.open(url)
 
     def _open_new_repo(self):
+        if self.git_info.get("has_remote_ref"):
+            remote_url = (self.git_info.get("remote_url") or github_sync.DEFAULT_REMOTE_URL).strip()
+            if remote_url.endswith(".git"):
+                remote_url = remote_url[:-4]
+            if remote_url:
+                webbrowser.open(remote_url)
+                return
         url = (self.git_info.get("new_repo_url") or f"https://github.com/new?name={github_sync.DEFAULT_REPO_NAME}").strip()
         webbrowser.open(url)
 
