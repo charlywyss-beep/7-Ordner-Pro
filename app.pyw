@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.64"
+APP_VERSION = "v1.0.65"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -5191,6 +5191,8 @@ class CustomRulesDialog(tk.Toplevel):
             self._set_status("Es sind noch keine Regeln gespeichert – bitte oben mindestens eine Regel speichern.", "#dc2626")
             return
         total_updated = 0
+        all_matched_rids = []
+        seen_rids = set()
         for rule in reversed(rules):
             matching_rids = []
             for rid, item in list(app.preview_items.items()):
@@ -5199,10 +5201,29 @@ class CustomRulesDialog(tk.Toplevel):
                 hay = f"{item.get('name', '')} {item.get('source_path', '')}".lower()
                 if _rule_matches_text(rule["keyword"], hay):
                     matching_rids.append(rid)
+                    if rid not in seen_rids:
+                        seen_rids.add(rid)
+                        all_matched_rids.append(rid)
             if matching_rids:
                 total_updated += app._apply_target_assignment(matching_rids, rule["target"], rule["label"], save_rule=False)
         if total_updated > 0:
-            self._set_status(f"{total_updated} Einträge in der Tabelle anhand der Regeln neu zugeordnet.", "#15803d")
+            visible_matched = [r for r in all_matched_rids if app.tree.exists(r)]
+            if visible_matched:
+                try:
+                    app.tree.selection_set(visible_matched)
+                    app.tree.see(visible_matched[0])
+                except Exception:
+                    pass
+            if hasattr(app, "_update_execute_scope_button"):
+                app._update_execute_scope_button()
+            sample_names = [app.preview_items[r].get("name", "") for r in all_matched_rids[:3] if r in app.preview_items]
+            sample_txt = ", ".join(n for n in sample_names if n)
+            more_txt = "…" if len(all_matched_rids) > 3 else ""
+            preview_hint = f" ({sample_txt}{more_txt})" if sample_txt else ""
+            self._set_status(
+                f"{total_updated} Einträge in der Tabelle neu zugeordnet & markiert{preview_hint} – nach „Schließen“ direkt ausführbar.",
+                "#15803d",
+            )
         else:
             self._set_status("Keine offenen Einträge in der aktuellen Tabelle passen auf die gespeicherten Regeln.", "#64748b")
 
@@ -5245,7 +5266,7 @@ class TargetFolderDialog(tk.Toplevel):
         self.grab_set()
         self.result = None
 
-        dw, dh = 740, 630
+        dw, dh = 820, 630
         try:
             parent.update_idletasks()
             px = parent.winfo_rootx() + max(0, (parent.winfo_width() - dw) // 2)
@@ -5253,7 +5274,7 @@ class TargetFolderDialog(tk.Toplevel):
         except Exception:
             px, py = 120, 90
         self.geometry(f"{dw}x{dh}+{px}+{py}")
-        self.minsize(580, 500)
+        self.minsize(720, 500)
 
         self._parent_app = parent
         first = items[0] if items else {}
@@ -5289,16 +5310,44 @@ class TargetFolderDialog(tk.Toplevel):
 
         ModernRoundedButton(
             foot,
-            text="✓ Zielordner übernehmen",
-            command=self._on_confirm,
+            text="➔ Sofort verschieben",
+            command=lambda: self._on_confirm(execute_mode="move"),
             bg="#2563eb",
             fg="#ffffff",
             hover_bg="#1d4ed8",
-            font=("Segoe UI", 9),
+            font=("Segoe UI", 9, "bold"),
             r=8,
-            padx=16,
+            padx=14,
             pady=6,
         ).pack(side="right")
+
+        ModernRoundedButton(
+            foot,
+            text="📋 Sofort kopieren",
+            command=lambda: self._on_confirm(execute_mode="copy"),
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=14,
+            pady=6,
+        ).pack(side="right", padx=(0, 8))
+
+        ModernRoundedButton(
+            foot,
+            text="✓ Übernehmen",
+            command=self._on_confirm,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#cbd5e1",
+            font=("Segoe UI", 9),
+            r=8,
+            padx=12,
+            pady=6,
+        ).pack(side="right", padx=(0, 8))
 
         ModernRoundedButton(
             foot,
@@ -5310,7 +5359,7 @@ class TargetFolderDialog(tk.Toplevel):
             border_color="#cbd5e1",
             font=("Segoe UI", 9),
             r=8,
-            padx=14,
+            padx=12,
             pady=6,
         ).pack(side="right", padx=(0, 8))
 
@@ -5490,7 +5539,7 @@ class TargetFolderDialog(tk.Toplevel):
         self.target_var.set(os.path.normpath(usb_dir))
         self.label_var.set("USB_Stick")
 
-    def _on_confirm(self):
+    def _on_confirm(self, execute_mode: str | None = None):
         raw_tgt = self.target_var.get().strip()
         if not raw_tgt:
             return
@@ -5502,6 +5551,7 @@ class TargetFolderDialog(tk.Toplevel):
             "save_rule": bool(self.save_rule_var.get()),
             "keyword": self.keyword_var.get().strip(),
             "apply_to_preview": bool(self.apply_preview_var.get()),
+            "execute_mode": execute_mode,
         }
         self._on_close()
 
@@ -7953,7 +8003,7 @@ class App(tk.Tk):
         self.tree.bind("<ButtonRelease-1>", self.on_tree_click_release)
         self.tree.bind("<Double-1>", self.on_tree_double_click)
         self.tree.bind("<Button-3>", self.show_context_menu)
-        self.tree.bind("<<TreeviewSelect>>", lambda _e: self._update_preview_pane_selection())
+        self.tree.bind("<<TreeviewSelect>>", lambda _e: self._on_tree_selection_changed())
         self.tree.bind("<space>", self._on_tree_space_key)
         self.tree.bind("<Delete>", lambda e: self.delete_selected_files())
         self.tree.bind("<BackSpace>", lambda e: self.delete_selected_files())
@@ -7992,6 +8042,25 @@ class App(tk.Tk):
             pady=10
         )
         self.btn_execute.pack(side="right")
+
+        self.btn_execute_scope = ModernRoundedButton(
+            nav_bar,
+            text="Nur Auswahl / Filter ausführen ➔",
+            command=self.execute_selected_or_filtered_sort,
+            bg="#ffffff",
+            fg="#2563eb",
+            hover_bg="#eff6ff",
+            border_color="#93c5fd",
+            font=("Segoe UI", 10, "bold"),
+            r=10,
+            padx=18,
+            pady=10
+        )
+        self.btn_execute_scope.pack(side="right", padx=(0, 10))
+        attach_tooltip(
+            self.btn_execute_scope,
+            "Nur aktuell markierte Zeilen (oder bei aktivem Filter die sichtbaren Zeilen) direkt kopieren/verschieben",
+        )
 
     # -------------------------------------------------------------
     # SPALTEN-STEUERUNG & DRAG-AND-DROP
@@ -8085,6 +8154,10 @@ class App(tk.Tk):
             return "break"
         return None
 
+    def _on_tree_selection_changed(self):
+        self._update_preview_pane_selection()
+        self._update_execute_scope_button()
+
     def _update_preview_pane_selection(self):
         if not self.preview_visible:
             return
@@ -8133,7 +8206,7 @@ class App(tk.Tk):
             if row_id:
                 self.preview_pane.show_item(self.preview_items.get(row_id))
             else:
-                self._update_preview_pane_selection()
+                self._on_tree_selection_changed()
         else:
             if pane_id in pane_ids:
                 try:
@@ -8188,6 +8261,12 @@ class App(tk.Tk):
 
             if count > 1:
                 menu_items.append({
+                    "icon": "▶",
+                    "label": f"Nur diese {count} markierten jetzt ausführen",
+                    "command": self.execute_selected_or_filtered_sort,
+                    "accent": True,
+                })
+                menu_items.append({
                     "icon": "📂",
                     "label": f"Zielordner ändern für {count} Einträge…",
                     "command": self.assign_target_folder_selected,
@@ -8232,6 +8311,12 @@ class App(tk.Tk):
                     "icon": "📂",
                     "label": "Zielordner ändern / Regel merken…",
                     "command": lambda r=row_id: self.assign_target_folder_selected([r]),
+                    "accent": True,
+                })
+                menu_items.append({
+                    "icon": "▶",
+                    "label": "Nur diese Datei jetzt ausführen",
+                    "command": lambda r=row_id: self.execute_sort(target_row_ids=[r], scope_label="aus Markierung"),
                     "accent": True,
                 })
                 if item.get("is_dir"):
@@ -8904,6 +8989,7 @@ class App(tk.Tk):
 
         self._update_step2_summary(visible_count=len(visible_rids), total_count=len(row_order), is_filtered=has_active_filter)
         self._update_preview_pane_selection()
+        self._update_execute_scope_button()
 
     # -------------------------------------------------------------
     # DUPLIKATE-LOGIK & AKTIONEN (SCHRITT 2)
@@ -9253,6 +9339,8 @@ class App(tk.Tk):
         save_rule: bool = False,
         keyword: str = "",
         apply_to_preview: bool = False,
+        forced_action_mode: str | None = None,
+        out_rids: list[str] | None = None,
     ) -> int:
         """Weist den angegebenen Zeilen einen neuen Zielordner zu und speichert optional die Stichwort-Regel."""
         raw_t = str(target_sub or "").strip()
@@ -9261,8 +9349,10 @@ class App(tk.Tk):
         clean_target = os.path.normpath(raw_t) if os.path.isabs(raw_t) else raw_t.replace("\\", "/")
         clean_label = str(label or "").strip() or os.path.basename(clean_target.rstrip("/\\")) or clean_target
         clean_kw = str(keyword or "").strip().lower()
+        target_act = ("Verschieben" if forced_action_mode == "move" else "Kopieren") if forced_action_mode in ("copy", "move") else None
 
         updated_rids = set()
+        updated_order = []
         updated_originals = []
         for rid in row_ids:
             item = self.preview_items.get(rid)
@@ -9270,12 +9360,16 @@ class App(tk.Tk):
                 continue
             item["target_sub"] = clean_target
             item["label"] = clean_label
-            if item.get("action") == "Überspringen":
-                if item.get("is_duplicate"):
+            if item.get("is_duplicate"):
+                if item.get("action") == "Überspringen" or target_act == "Kopieren":
                     item["action"] = "Mitkopieren"
-                else:
-                    item["action"] = "Verschieben" if self.action_mode.get() == "move" else "Kopieren"
-            updated_rids.add(rid)
+            elif target_act is not None:
+                item["action"] = target_act
+            elif item.get("action") == "Überspringen":
+                item["action"] = "Verschieben" if self.action_mode.get() == "move" else "Kopieren"
+            if rid not in updated_rids:
+                updated_rids.add(rid)
+                updated_order.append(rid)
             if item.get("has_duplicates"):
                 updated_originals.append(item)
 
@@ -9292,7 +9386,10 @@ class App(tk.Tk):
                     if _rule_matches_text(clean_kw, hay):
                         item["target_sub"] = clean_target
                         item["label"] = clean_label
+                        if target_act is not None:
+                            item["action"] = target_act
                         updated_rids.add(rid)
+                        updated_order.append(rid)
                         if item.get("has_duplicates"):
                             updated_originals.append(item)
 
@@ -9302,12 +9399,15 @@ class App(tk.Tk):
                 if dup_item and dup_item.get("original_item") in updated_originals:
                     dup_item["target_sub"] = clean_target
                     dup_item["label"] = clean_label
-                    updated_rids.add(dup_rid)
+                    if dup_rid not in updated_rids:
+                        updated_rids.add(dup_rid)
 
         for rid in updated_rids:
             self.update_row_display(rid)
         if updated_rids:
             self.apply_step2_filters()
+        if out_rids is not None:
+            out_rids.extend(updated_order)
         return len(updated_rids)
 
     def assign_target_folder_selected(self, row_ids: list[str] | None = None):
@@ -9336,6 +9436,8 @@ class App(tk.Tk):
             return
 
         res = dlg.result
+        exec_mode = res.get("execute_mode")
+        run_rids: list[str] = []
         self._apply_target_assignment(
             valid_rids,
             target_sub=res["target_sub"],
@@ -9343,7 +9445,11 @@ class App(tk.Tk):
             save_rule=res["save_rule"],
             keyword=res["keyword"],
             apply_to_preview=res["apply_to_preview"],
+            forced_action_mode=exec_mode,
+            out_rids=run_rids,
         )
+        if exec_mode in ("copy", "move") and run_rids:
+            self.execute_sort(target_row_ids=run_rids, scope_label="aus Auswahl", override_action_mode=exec_mode)
 
     def delete_single_file(self, row_id: str):
         """Loescht eine einzelne Datei."""
@@ -9896,13 +10002,14 @@ class App(tk.Tk):
         )
         title.pack(anchor="w", pady=(0, 4))
 
-        tk.Label(
+        self.lbl_step3_subtitle = tk.Label(
             self.frame_step3,
             text="Alle ausgewählten Elemente wurden geordnet in das 7-Ordner-System übernommen.",
             font=("Segoe UI", 10),
             bg="#f8fafc",
             fg="#475569",
-        ).pack(anchor="w", pady=(0, 14))
+        )
+        self.lbl_step3_subtitle.pack(anchor="w", pady=(0, 14))
 
         card_res = tk.Frame(
             self.frame_step3,
@@ -9983,7 +10090,21 @@ class App(tk.Tk):
             padx=14,
             pady=7,
         )
-        self.btn_step3_again.pack(side="left")
+        self.btn_step3_again.pack(side="left", padx=(0, 10))
+
+        self.btn_step3_back_to_table = ModernRoundedButton(
+            self.step3_btn_box,
+            "⬅ Zurück zur Vorschau-Tabelle",
+            command=self.show_step2,
+            bg="#ffffff",
+            fg="#2563eb",
+            hover_bg="#eff6ff",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=14,
+            pady=7,
+        )
 
         self.btn_step3_open = ModernRoundedButton(
             self.step3_btn_box,
@@ -11260,7 +11381,7 @@ class App(tk.Tk):
             self.update_idletasks()
             if not self._custom_col_widths:
                 self.auto_fit_columns()
-            self._update_preview_pane_selection()
+            self._on_tree_selection_changed()
         else:
             if not self._custom_col_widths:
                 self.auto_fit_columns()
@@ -11271,7 +11392,7 @@ class App(tk.Tk):
                 self.tree.yview_moveto(prev_scroll)
             except Exception:
                 pass
-            self._update_preview_pane_selection()
+            self._on_tree_selection_changed()
 
     def show_app_info(self):
         dlg = AppInfoDialog(self)
@@ -11354,13 +11475,79 @@ class App(tk.Tk):
         self.wait_window(dlg)
         return bool(dlg.result)
 
-    def execute_sort(self):
+    def _get_scope_execution_targets(self) -> tuple[list[str], str, str]:
+        """Liefert (row_ids, mode, button_text) für gezieltes Ausführen markierter oder gefilterter Zeilen."""
+        tree = getattr(self, "tree", None)
+        items = getattr(self, "preview_items", None) or {}
+        if tree is None or not items:
+            return [], "none", "Nur Auswahl / Filter ausführen ➔"
+
+        sel = [rid for rid in tree.selection() if rid in items]
+        if sel:
+            lbl = "Nur 1 markierte ausführen ➔" if len(sel) == 1 else f"Nur {len(sel)} markierte ausführen ➔"
+            return sel, "selection", lbl
+
+        if self._has_active_step2_filters():
+            vis = [rid for rid in tree.get_children("") if rid in items]
+            if len(vis) == 1:
+                lbl = "Nur 1 gefilterte ausführen ➔"
+            elif vis:
+                lbl = f"Nur {len(vis)} gefilterte ausführen ➔"
+            else:
+                lbl = "Nur gefilterte ausführen ➔"
+            return vis, "filtered", lbl
+
+        return [], "none", "Nur Auswahl / Filter ausführen ➔"
+
+    def _update_execute_scope_button(self):
+        btn = getattr(self, "btn_execute_scope", None)
+        if btn is None:
+            return
+        try:
+            _, _, lbl = self._get_scope_execution_targets()
+            btn.update_style(text=lbl)
+        except Exception:
+            pass
+
+    def execute_selected_or_filtered_sort(self):
+        rids, mode, _ = self._get_scope_execution_targets()
+        if mode == "none":
+            self.show_notice(
+                "Keine Auswahl oder Filter aktiv",
+                "Bitte markieren Sie zuerst Zeilen in der Tabelle oder setzen Sie oben einen Filter (z. B. „.epub“), um gezielt nur diese auszuführen.",
+                "Für die komplette Tabelle nutzen Sie rechts den Button „Jetzt sortieren & anwenden“.",
+                kind="info",
+            )
+            return
+        if not rids:
+            self.show_notice(
+                "Keine passenden Einträge",
+                "Im aktuellen Filter werden momentan keine Einträge angezeigt.",
+                kind="info",
+            )
+            return
+        scope_lbl = "aus Markierung" if mode == "selection" else "aus aktuellem Filter"
+        self.execute_sort(target_row_ids=rids, scope_label=scope_lbl)
+
+    def execute_sort(self, target_row_ids: list[str] | None = None, scope_label: str = "", override_action_mode: str | None = None):
         items_to_process = []
         dest_base = Path(self.target_dir.get().strip())
         uses_dest_base = False
         custom_roots = []
+        is_partial = (target_row_ids is not None)
+        eff_mode = override_action_mode if override_action_mode in ("copy", "move") else self.action_mode.get()
 
-        for row_id, item in self.preview_items.items():
+        if is_partial:
+            seen_rids = set()
+            row_pairs = []
+            for rid in target_row_ids:
+                if rid not in seen_rids and rid in self.preview_items:
+                    seen_rids.add(rid)
+                    row_pairs.append((rid, self.preview_items[rid]))
+        else:
+            row_pairs = list(self.preview_items.items())
+
+        for row_id, item in row_pairs:
             act = item.get("action", "")
             is_dir = bool(item.get("is_dir", False))
             if act in ["Kopieren", "Verschieben", "Mitkopieren"]:
@@ -11377,6 +11564,7 @@ class App(tk.Tk):
                     suffix = item["src_path"].suffix
                     target_file = target_dir / f"{stem}_01{suffix}"
                     items_to_process.append({
+                        "rid": row_id,
                         "src_path": item["src_path"],
                         "dest_dir": target_dir,
                         "dest_file": target_file,
@@ -11387,22 +11575,36 @@ class App(tk.Tk):
                     })
                 else:
                     target_file = target_dir / item["name"]
+                    item_action = (
+                        ("copy" if override_action_mode == "copy" else "move")
+                        if override_action_mode in ("copy", "move")
+                        else ("copy" if "Kopieren" in act else "move")
+                    )
                     items_to_process.append({
+                        "rid": row_id,
                         "src_path": item["src_path"],
                         "dest_dir": target_dir,
                         "dest_file": target_file,
-                        "action": "copy" if "Kopieren" in act else "move",
+                        "action": item_action,
                         "is_dup": False,
                         "is_dir": is_dir,
                         "is_cloud_only": bool(item.get("is_cloud_only", False)),
                     })
 
         if not items_to_process:
-            self.show_notice("Keine Aktionen", "Es sind keine Dokumente zum Kopieren oder Verschieben markiert.", kind="info")
+            if is_partial:
+                self.show_notice(
+                    "Keine aktiven Aktionen",
+                    "Unter den markierten bzw. gefilterten Einträgen steht kein Eintrag auf „Kopieren“, „Verschieben“ oder „Mitkopieren“.",
+                    "Prüfen Sie in der Spalte „Aktion“, ob die Zeilen aktuell auf „Überspringen“ oder „Gelöscht“ stehen.",
+                    kind="info",
+                )
+            else:
+                self.show_notice("Keine Aktionen", "Es sind keine Dokumente zum Kopieren oder Verschieben markiert.", kind="info")
             return
 
         # NetzwerkSchutz: Versehentliches Verschieben aus gemeinsamem Netzlaufwerk abfangen
-        if self.action_mode.get() == "move" and self.network_guard_var.get() and any(is_network_path(it["src_path"]) for it in items_to_process):
+        if eff_mode == "move" and self.network_guard_var.get() and any(is_network_path(it["src_path"]) for it in items_to_process):
             safe_switch = self.confirm_action(
                 title="NetzwerkSchutz: Gemeinsamen Ordner schützen",
                 headline="Quelldateien liegen auf einem Netzlaufwerk – „Verschieben“ würde Originale vom Server entfernen!",
@@ -11415,7 +11617,9 @@ class App(tk.Tk):
             )
             if not safe_switch:
                 return
-            self.action_mode.set("copy")
+            eff_mode = "copy"
+            if not override_action_mode:
+                self.action_mode.set("copy")
             for it in items_to_process:
                 if it["action"] == "move":
                     it["action"] = "copy"
@@ -11431,7 +11635,7 @@ class App(tk.Tk):
                 self.show_notice("Fehlende Schreibrechte", f"In das gewählte Zielverzeichnis ({chk_dir}) kann nicht geschrieben werden.", str(err_msg), kind="error")
                 return
 
-        is_copy = (self.action_mode.get() == "copy")
+        is_copy = (eff_mode == "copy")
         has_dirs = any(it.get("is_dir") for it in items_to_process)
         n_items = len(items_to_process)
         if has_dirs:
@@ -11445,14 +11649,25 @@ class App(tk.Tk):
         confirm_btn = "Jetzt kopieren" if is_copy else "Jetzt verschieben"
 
         cloud_cnt = sum(1 for it in items_to_process if it.get("is_cloud_only"))
-        sub_msg = "Sie können dies später über den Rückgängig-Knopf zurücksetzen."
+        sub_msg = (
+            "Nur diese Auswahl wird jetzt ausgeführt; alle übrigen Zeilen bleiben in der Tabelle erhalten."
+            if is_partial
+            else "Sie können dies später über den Rückgängig-Knopf zurücksetzen."
+        )
         if cloud_cnt > 0:
             cloud_word = "1 Cloud-Datei" if cloud_cnt == 1 else f"{cloud_cnt} Cloud-Dateien"
-            sub_msg = f"Hinweis: Enthält {cloud_word} aus OneDrive (werden jetzt heruntergeladen)."
+            cloud_hint = f"Hinweis: Enthält {cloud_word} aus OneDrive (werden jetzt heruntergeladen)."
+            sub_msg = f"{cloud_hint}\n{sub_msg}" if is_partial else cloud_hint
 
+        scope_suffix = f" ({scope_label})" if is_partial and scope_label else ""
+        headline_txt = (
+            f"Möchten Sie jetzt nur {count_label}{scope_suffix} {action_verb}?"
+            if is_partial
+            else f"Möchten Sie jetzt {count_label} {action_verb}?"
+        )
         confirmed = self.confirm_action(
             title=dlg_title,
-            headline=f"Möchten Sie jetzt {count_label} {action_verb}?",
+            headline=headline_txt,
             subline=sub_msg,
             confirm_text=confirm_btn,
         )
@@ -11461,11 +11676,13 @@ class App(tk.Tk):
 
         transaction = {
             "timestamp": datetime.datetime.now().isoformat(),
-            "action": self.action_mode.get(),
+            "action": eff_mode,
             "items": []
         }
 
         success = 0
+        executed_rids_copy = []
+        executed_rids_move = []
         for it in items_to_process:
             src = it["src_path"]
             dest_dir = it["dest_dir"]
@@ -11491,8 +11708,10 @@ class App(tk.Tk):
                         shutil.copytree(str(src), str(final_dest))
                     else:
                         shutil.copy2(str(src), str(final_dest))
+                    executed_rids_copy.append(it["rid"])
                 else:
                     shutil.move(str(src), str(final_dest))
+                    executed_rids_move.append(it["rid"])
 
                 transaction["items"].append({
                     "src": str(src),
@@ -11513,6 +11732,26 @@ class App(tk.Tk):
         except Exception as e:
             print(f"Fehler beim Schreiben der Historie: {e}")
 
+        if is_partial and (executed_rids_copy or executed_rids_move):
+            moved_set = set(executed_rids_move)
+            for rid in executed_rids_copy:
+                item = self.preview_items.get(rid)
+                if item:
+                    item["action"] = "Überspringen"
+                    self.update_row_display(rid)
+            if moved_set:
+                for rid in moved_set:
+                    self.preview_items.pop(rid, None)
+                    try:
+                        if self.tree.exists(rid):
+                            self.tree.delete(rid)
+                    except Exception:
+                        pass
+                self._preview_row_order = [r for r in self._preview_row_order if r not in moved_set]
+                self.duplicate_ids = [r for r in self.duplicate_ids if r not in moved_set]
+            self.update_dup_counter()
+            self.apply_step2_filters()
+
         has_dirs = any(it.get("is_dir") for it in items_to_process)
         if has_dirs:
             unit_label = "Einträge (Dateien & Ordner)"
@@ -11523,11 +11762,26 @@ class App(tk.Tk):
         self.lbl_result.config(
             text=f"✓  Es wurden {success} von {len(items_to_process)} {unit_label} erfolgreich {action_name}."
         )
+        has_remaining = bool(is_partial and self.preview_items)
+        if hasattr(self, "lbl_step3_subtitle"):
+            self.lbl_step3_subtitle.config(
+                text=(
+                    "Die ausgewählten bzw. gefilterten Elemente wurden übernommen. Übrige Einträge stehen weiter in der Tabelle bereit."
+                    if has_remaining
+                    else "Alle ausgewählten Elemente wurden geordnet in das 7-Ordner-System übernommen."
+                )
+            )
+        if hasattr(self, "btn_step3_back_to_table"):
+            if has_remaining:
+                if not self.btn_step3_back_to_table.winfo_manager():
+                    self.btn_step3_back_to_table.pack(side="left", before=self.btn_step3_again, padx=(0, 10))
+            else:
+                self.btn_step3_back_to_table.pack_forget()
         explorer_target = self._resolve_explorer_target_dir(dest_base, transaction["items"])
         self._last_explorer_target = str(explorer_target)
         self.lbl_step3_src.config(text=self.source_dir.get().strip())
         self.lbl_step3_dest.config(text=str(explorer_target))
-        if self.action_mode.get() == "copy":
+        if eff_mode == "copy":
             self.lbl_step3_hint.config(
                 text="Ihre Originaldateien im Quellordner wurden nicht verändert. Mit „Letzte Aktion rückgängig“ können Sie den Vorgang jederzeit zurücknehmen."
             )
