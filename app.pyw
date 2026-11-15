@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.53"
+APP_VERSION = "v1.0.54"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -1838,6 +1838,17 @@ def _draw_vector_icon(d: ImageDraw.ImageDraw, kind: str, x0: int, y0: int, size:
     elif kind == "folder_same":
         draw_folder_base()
         d.ellipse([px(6.0, 7.5), px(10.0, 11.5)], fill=("#ffffff" if is_active else c_accent))
+
+    elif kind == "usb_stick":
+        r = max(2, round(1.4 * u))
+        cap_fill = "#e2e8f0" if is_active else "#dbeafe"
+        body_fill = "#ffffff" if is_active else c_accent
+        body_outline = "#ffffff" if is_active else "#1d4ed8"
+        d.rounded_rectangle([px(5.0, 1.4), px(11.0, 5.2)], radius=max(1, round(0.8 * u)), fill=cap_fill, outline=body_outline, width=max(1, round(1.0 * u)))
+        d.rectangle([px(6.4, 2.5), px(7.4, 4.0)], fill=("#2563eb" if not is_active else "#1d4ed8"))
+        d.rectangle([px(8.6, 2.5), px(9.6, 4.0)], fill=("#2563eb" if not is_active else "#1d4ed8"))
+        d.rounded_rectangle([px(3.6, 4.8), px(12.4, 14.6)], radius=r, fill=body_fill, outline=body_outline, width=lw)
+        d.ellipse([px(6.8, 8.6), px(9.2, 11.0)], fill=("#2563eb" if is_active else "#ffffff"))
 
     elif kind == "folder_split":
         d.rounded_rectangle([px(3.5, 1.4), px(12.5, 9.0)], radius=max(1, round(1.0 * u)), fill=("#1d4ed8" if is_active else "#ffffff"), outline=c_ink, width=max(2, round(1.2 * u)))
@@ -6786,7 +6797,24 @@ class App(tk.Tk):
             icon_kind="folder_same",
             min_width=quick_min_w
         )
-        self.btn_target_same.pack(side="left")
+        self.btn_target_same.pack(side="left", padx=(0, 10))
+
+        self.btn_target_usb = ModernRoundedButton(
+            quick_row,
+            text="USB_Stick",
+            command=self.set_target_usb,
+            bg="#ffffff",
+            fg="#475569",
+            hover_bg="#f1f5f9",
+            border_color="#cbd5e1",
+            font=("Segoe UI", 9),
+            r=8,
+            padx=14,
+            pady=6,
+            icon_kind="usb_stick",
+        )
+        self.btn_target_usb.pack(side="left")
+        attach_tooltip(self.btn_target_usb, "Erkennt den USB-Stick automatisch (egal ob E:, F:, G: ...) und setzt X:\\USB_Stick als Ziel")
 
         # 3. Optionen Card
         card_opt = tk.Frame(self.frame_step1, bg="#ffffff", highlightthickness=1, highlightbackground="#e2e8f0", padx=16, pady=12)
@@ -9309,9 +9337,28 @@ class App(tk.Tk):
         self.update_target_mode_ui()
         self._save_app_state()
 
+    def set_target_usb(self):
+        usb_dir = github_sync.find_usb_stick_data_dir()
+        if not usb_dir:
+            self.show_notice(
+                "USB_Stick nicht gefunden",
+                "Kein eingesteckter USB-Stick mit Ordner 'USB_Stick' gefunden (E:, F:, G: ...).",
+                kind="warning",
+                auto_close_ms=4000,
+            )
+            return
+        self.target_mode = "usb"
+        self.target_dir.set(usb_dir)
+        self.update_target_mode_ui()
+        self._save_app_state()
+
     def sync_target_mode_ui(self):
         src = self.source_dir.get().strip()
         dest = self.target_dir.get().strip()
+        if dest and os.path.basename(os.path.normpath(dest)).lower() == "usb_stick":
+            self.target_mode = "usb"
+            self.update_target_mode_ui()
+            return
         if src and dest:
             try:
                 p_src = Path(src)
@@ -9342,6 +9389,8 @@ class App(tk.Tk):
         }
         if hasattr(self, "btn_target_same"):
             buttons["same"] = self.btn_target_same
+        if hasattr(self, "btn_target_usb"):
+            buttons["usb"] = self.btn_target_usb
 
         for key, btn in buttons.items():
             btn.update_style(**(active_kw if self.target_mode == key else neutral_kw))

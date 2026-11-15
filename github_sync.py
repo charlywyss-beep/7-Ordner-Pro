@@ -240,7 +240,7 @@ def fetch_remote_release_info(remote_url=None, branch="main", timeout=5):
     return res
 
 
-def get_git_info(app_version="v1.0.53"):
+def get_git_info(app_version="v1.0.54"):
     """Liest Git-Status, Versionsvergleich, Historie und Download-Links aus."""
     repo_dir = find_repo_dir()
     exe_path = os.path.join(repo_dir, EXE_FILENAME)
@@ -500,7 +500,7 @@ def git_push_upload(app_version="v1.0.51"):
         return {"success": False, "error": str(e), "message": str(e), "git_info": get_git_info(app_version)}
 
 
-def self_update_exe_from_github(app_version="v1.0.53", remote_url=None, branch="main"):
+def self_update_exe_from_github(app_version="v1.0.54", remote_url=None, branch="main"):
     """Dubeli-sicheres Direkt-Update der laufenden .exe von GitHub (USB-/Standalone-Modus ohne Git)."""
     import urllib.request
     import tempfile
@@ -656,7 +656,7 @@ def self_update_exe_from_github(app_version="v1.0.53", remote_url=None, branch="
     }
 
 
-def git_pull_update(app_version="v1.0.53"):
+def git_pull_update(app_version="v1.0.54"):
     """Lädt den neuesten Stand von GitHub herunter (window_state.json bleibt erhalten)."""
     repo_dir = find_repo_dir()
     if not repo_dir or not os.path.exists(os.path.join(repo_dir, ".git")):
@@ -776,6 +776,7 @@ def list_usb_drives(app_folder_name: str = "Ordner-Struktur", exe_name: str = EX
                 pass
             default_dir = os.path.join(root, "Tools", app_folder_name)
             has_exe = os.path.isfile(os.path.join(default_dir, exe_name))
+            usb_data_dir = os.path.join(root, "USB_Stick")
             drives.append({
                 "drive": root,
                 "letter": letter,
@@ -784,10 +785,116 @@ def list_usb_drives(app_folder_name: str = "Ordner-Struktur", exe_name: str = EX
                 "free_gb": free_gb,
                 "default_dir": default_dir,
                 "has_exe": has_exe,
+                "usb_data_dir": usb_data_dir if os.path.isdir(usb_data_dir) else "",
             })
     except Exception:
         pass
     return drives
+
+
+def find_usb_stick_data_dir() -> str:
+    """Findet automatisch den Ordner 'USB_Stick' auf jedem eingesteckten USB-Stick (unabhängig vom Laufwerksbuchstaben)."""
+    if os.name != "nt":
+        return ""
+    if getattr(sys, "frozen", False):
+        exe_drive, _ = os.path.splitdrive(os.path.abspath(sys.executable))
+        if exe_drive:
+            cand = os.path.join(exe_drive + "\\", "USB_Stick")
+            if os.path.isdir(cand):
+                return cand
+    for d in list_usb_drives():
+        cand = d.get("usb_data_dir") or os.path.join(d["drive"], "USB_Stick")
+        if os.path.isdir(cand):
+            return cand
+    try:
+        import ctypes
+        k32 = ctypes.windll.kernel32
+        mask = k32.GetLogicalDrives()
+        for idx in range(2, 26):
+            if not (mask & (1 << idx)):
+                continue
+            cand = f"{chr(ord('A') + idx)}:\\USB_Stick"
+            if os.path.isdir(cand):
+                return cand
+    except Exception:
+        pass
+    return ""
+
+
+def _is_ntfs_volume(path: str) -> bool:
+    if os.name != "nt" or not path:
+        return False
+    drive, _ = os.path.splitdrive(os.path.abspath(path))
+    if not drive:
+        return False
+    try:
+        import ctypes
+        fs_buf = ctypes.create_unicode_buffer(64)
+        ok = ctypes.windll.kernel32.GetVolumeInformationW(drive + "\\", None, 0, None, None, None, fs_buf, 64)
+        return bool(ok and fs_buf.value.upper() == "NTFS")
+    except Exception:
+        return False
+
+
+def _run_icacls(args: list[str]) -> bool:
+    try:
+        kwargs = {"capture_output": True, "text": True, "timeout": 15}
+        if _NO_WINDOW:
+            kwargs["creationflags"] = _NO_WINDOW
+        res = subprocess.run(["icacls"] + args, **kwargs)
+        return res.returncode == 0
+    except Exception:
+        return False
+
+
+def unprotect_usb_tools_dir(target_dir: str) -> None:
+    """Entfernt temporär den NTFS-Löschschutz für Updates auf Tools\\..."""
+    if not _is_ntfs_volume(target_dir):
+        return
+    norm = os.path.abspath(target_dir)
+    parent = os.path.dirname(norm)
+    paths = [norm]
+    if os.path.basename(parent).lower() == "tools":
+        paths.insert(0, parent)
+    for p in paths:
+        if os.path.exists(p):
+            _run_icacls([p, "/remove:d", "*S-1-1-0", "/T", "/Q"])
+            _run_icacls([p, "/grant", "*S-1-1-0:(OI)(CI)F", "/T", "/Q"])
+
+
+def protect_usb_tools_tree(target_dir: str) -> bool:
+    """Aktiviert echten NTFS-Löschschutz auf Tools (+EXEs), hält JSON-Configs beschreibbar und schützt USB_Stick-Wurzel."""
+    if not _is_ntfs_volume(target_dir):
+        return False
+    norm = os.path.abspath(target_dir)
+    drive, _ = os.path.splitdrive(norm)
+    drive_root = drive + "\\" if drive else ""
+    parent = os.path.dirname(norm)
+    tools_root = parent if os.path.basename(parent).lower() == "tools" else norm
+
+    ok = True
+    if drive_root and os.path.isdir(drive_root):
+        _run_icacls([drive_root, "/deny", "*S-1-1-0:(DC)"])
+
+    if os.path.isdir(tools_root):
+        ok = _run_icacls([tools_root, "/inheritance:r", "/Q"]) and ok
+        ok = _run_icacls([tools_root, "/grant", "*S-1-1-0:(OI)(CI)RX", "*S-1-5-32-544:(OI)(CI)F", "/Q"]) and ok
+        ok = _run_icacls([tools_root, "/deny", "*S-1-1-0:(OI)(CI)(DE,DC,WD,AD)", "/Q"]) and ok
+        for rdir, _dirs, fnames in os.walk(tools_root):
+            for fn in fnames:
+                if fn.lower().endswith(".json"):
+                    jp = os.path.join(rdir, fn)
+                    _run_icacls([jp, "/inheritance:r", "/Q"])
+                    _run_icacls([jp, "/grant", "*S-1-1-0:(R,W)", "*S-1-5-32-544:F", "/Q"])
+                    _run_icacls([jp, "/deny", "*S-1-1-0:(DE)", "/Q"])
+
+    if drive_root:
+        usb_stick_dir = os.path.join(drive_root, "USB_Stick")
+        if os.path.isdir(usb_stick_dir):
+            _run_icacls([usb_stick_dir, "/inheritance:r", "/Q"])
+            _run_icacls([usb_stick_dir, "/grant", "*S-1-1-0:(OI)(CI)F", "*S-1-5-32-544:(OI)(CI)F", "/Q"])
+            _run_icacls([usb_stick_dir, "/deny", "*S-1-1-0:(DE)", "/Q"])
+    return ok
 
 
 def _resolve_usb_app_dir(target_root: str, app_folder: str = "Ordner-Struktur", exe_name: str = EXE_FILENAME) -> str:
@@ -831,6 +938,7 @@ def deploy_exe_to_usb(target_root: str = "") -> dict:
         target_dir = _resolve_usb_app_dir(clean_target, app_folder, exe_name)
 
     dest_exe = os.path.join(target_dir, exe_name)
+    is_tools_target = os.path.basename(os.path.dirname(os.path.abspath(target_dir))).lower() == "tools"
     try:
         if os.path.abspath(src_exe).lower() == os.path.abspath(dest_exe).lower():
             return {
@@ -840,6 +948,8 @@ def deploy_exe_to_usb(target_root: str = "") -> dict:
                 "target_exe": dest_exe,
                 "message": f"Die App läuft bereits direkt unter {dest_exe}.",
             }
+        if is_tools_target:
+            unprotect_usb_tools_dir(target_dir)
         os.makedirs(target_dir, exist_ok=True)
         existed_before = os.path.isfile(dest_exe)
         tmp_exe = os.path.join(target_dir, f".{exe_name}.{os.getpid()}.tmp")
@@ -847,6 +957,9 @@ def deploy_exe_to_usb(target_root: str = "") -> dict:
         os.replace(tmp_exe, dest_exe)
         size_mb = f"{os.path.getsize(dest_exe) / (1024 * 1024):.1f} MB"
         verb = "aktualisiert" if existed_before else "neu angelegt & abgelegt"
+        prot_note = ""
+        if is_tools_target and protect_usb_tools_tree(target_dir):
+            prot_note = " (Tools-Ordner ist löschgeschützt)"
         return {
             "success": True,
             "already_there": False,
@@ -854,7 +967,9 @@ def deploy_exe_to_usb(target_root: str = "") -> dict:
             "target_dir": target_dir,
             "target_exe": dest_exe,
             "size_mb": size_mb,
-            "message": f"{exe_name} ({size_mb}) erfolgreich in {target_dir} {verb}!",
+            "message": f"{exe_name} ({size_mb}) erfolgreich in {target_dir} {verb}{prot_note}!",
         }
     except Exception as exc:
+        if is_tools_target:
+            protect_usb_tools_tree(target_dir)
         return {"success": False, "error": f"Kopieren auf USB-Stick fehlgeschlagen: {exc}"}
