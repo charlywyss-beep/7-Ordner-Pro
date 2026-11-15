@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.55"
+APP_VERSION = "v1.0.56"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -5078,7 +5078,7 @@ class TargetFolderDialog(tk.Toplevel):
         self.grab_set()
         self.result = None
 
-        dw, dh = 700, 590
+        dw, dh = 740, 630
         try:
             parent.update_idletasks()
             px = parent.winfo_rootx() + max(0, (parent.winfo_width() - dw) // 2)
@@ -5086,8 +5086,9 @@ class TargetFolderDialog(tk.Toplevel):
         except Exception:
             px, py = 120, 90
         self.geometry(f"{dw}x{dh}+{px}+{py}")
-        self.minsize(560, 480)
+        self.minsize(580, 500)
 
+        self._parent_app = parent
         first = items[0] if items else {}
         cur_target = str(first.get("target_sub") or "01_Eingang_Inbox")
         cur_label = str(first.get("label") or "")
@@ -5097,8 +5098,9 @@ class TargetFolderDialog(tk.Toplevel):
 
         n_cnt = len(items)
         head_txt = f"Zielordner ändern für „{first.get('name', '')}“" if n_cnt == 1 else f"Zielordner für {n_cnt} ausgewählte Einträge ändern"
+        cur_disp = os.path.normpath(cur_target) if os.path.isabs(cur_target) else cur_target.replace("/", " \\ ")
         tk.Label(outer, text=head_txt, font=("Segoe UI", 10, "bold"), bg="#f8fafc", fg="#0f172a", anchor="w").pack(fill="x")
-        tk.Label(outer, text=f"Aktueller Zielordner: {cur_target.replace('/', ' \\ ')}", font=("Segoe UI", 9), bg="#f8fafc", fg="#64748b", anchor="w").pack(fill="x", pady=(2, 10))
+        tk.Label(outer, text=f"Aktueller Zielordner: {cur_disp}", font=("Segoe UI", 9), bg="#f8fafc", fg="#64748b", anchor="w").pack(fill="x", pady=(2, 10))
 
         # Fusszeile & Karte 2 ZUERST von unten packen, damit Buttons niemals abgeschnitten werden
         foot = tk.Frame(outer, bg="#f8fafc")
@@ -5229,12 +5231,46 @@ class TargetFolderDialog(tk.Toplevel):
 
         custom_row = tk.Frame(list_card, bg="#ffffff")
         custom_row.pack(fill="x", pady=(8, 0))
-        tk.Label(custom_row, text="Zielpfad:", font=("Segoe UI", 9), bg="#ffffff", fg="#334155").pack(side="left", padx=(0, 6))
+        tk.Label(custom_row, text="Zielpfad:", width=9, anchor="w", font=("Segoe UI", 9), bg="#ffffff", fg="#334155").pack(side="left", padx=(0, 6))
         self.ent_target = tk.Entry(custom_row, textvariable=self.target_var, font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
-        self.ent_target.pack(side="left", fill="x", expand=True, padx=(0, 8), ipady=3)
-        tk.Label(custom_row, text="Kategorie:", font=("Segoe UI", 9), bg="#ffffff", fg="#475569").pack(side="left", padx=(0, 6))
-        self.ent_label = tk.Entry(custom_row, textvariable=self.label_var, width=22, font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
+        self.ent_target.pack(side="left", fill="x", expand=True, padx=(0, 8), ipady=4)
+
+        ModernRoundedButton(
+            custom_row,
+            text="Ordner wählen…",
+            command=self._browse_custom_folder,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#cbd5e1",
+            font=("Segoe UI", 9),
+            r=8,
+            padx=12,
+            pady=5,
+            icon_kind="folder_adjacent",
+        ).pack(side="left", padx=(0, 6))
+
+        ModernRoundedButton(
+            custom_row,
+            text="USB_Stick",
+            command=self._pick_usb_stick_folder,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#cbd5e1",
+            font=("Segoe UI", 9),
+            r=8,
+            padx=12,
+            pady=5,
+            icon_kind="usb_stick",
+        ).pack(side="left")
+
+        cat_row = tk.Frame(list_card, bg="#ffffff")
+        cat_row.pack(fill="x", pady=(6, 0))
+        tk.Label(cat_row, text="Kategorie:", width=9, anchor="w", font=("Segoe UI", 9), bg="#ffffff", fg="#475569").pack(side="left", padx=(0, 6))
+        self.ent_label = tk.Entry(cat_row, textvariable=self.label_var, width=28, font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
         self.ent_label.pack(side="left", ipady=3)
+        tk.Label(cat_row, text="(7-Ordner-Kategorie oder freier Speicher-Ordner auf PC / USB)", font=("Segoe UI", 8), bg="#ffffff", fg="#64748b").pack(side="left", padx=(8, 0))
 
         def _on_select(_e=None):
             sel = self.tree.selection()
@@ -5254,11 +5290,45 @@ class TargetFolderDialog(tk.Toplevel):
         self.lift()
         self.focus_set()
 
-    def _on_confirm(self):
-        tgt = self.target_var.get().strip().replace("\\", "/")
-        if not tgt:
+    def _browse_custom_folder(self):
+        cur = self.target_var.get().strip()
+        init_dir = ""
+        if cur and os.path.isabs(cur) and os.path.isdir(cur):
+            init_dir = cur
+        elif hasattr(self._parent_app, "target_dir"):
+            td = self._parent_app.target_dir.get().strip()
+            if td and os.path.isdir(td):
+                init_dir = td
+        chosen = filedialog.askdirectory(
+            parent=self,
+            initialdir=init_dir or os.path.expanduser("~"),
+            title="Speicher-Ordner für ausgewählte Dateien wählen",
+        )
+        if not chosen:
             return
-        lbl = self.label_var.get().strip() or tgt.split("/")[-1]
+        norm = os.path.normpath(chosen)
+        self.target_var.set(norm)
+        folder_name = os.path.basename(norm) or norm
+        self.label_var.set(f"Eigener Ordner ({folder_name})")
+
+    def _pick_usb_stick_folder(self):
+        usb_dir = github_sync.find_usb_stick_data_dir()
+        if not usb_dir:
+            messagebox.showwarning(
+                "USB_Stick nicht gefunden",
+                "Kein eingesteckter USB-Stick mit Ordner 'USB_Stick' gefunden (E:, F:, G: ...).",
+                parent=self,
+            )
+            return
+        self.target_var.set(os.path.normpath(usb_dir))
+        self.label_var.set("USB_Stick")
+
+    def _on_confirm(self):
+        raw_tgt = self.target_var.get().strip()
+        if not raw_tgt:
+            return
+        tgt = os.path.normpath(raw_tgt) if os.path.isabs(raw_tgt) else raw_tgt.replace("\\", "/")
+        lbl = self.label_var.get().strip() or os.path.basename(tgt.rstrip("/\\")) or tgt
         self.result = {
             "target_sub": tgt,
             "label": lbl,
@@ -8201,7 +8271,8 @@ class App(tk.Tk):
         act = item.get("action", "")
 
         # Formatierung des Zielordners mit Windows-Backslash
-        target_clean = item["target_sub"].replace("/", " \\ ")
+        raw_t = str(item.get("target_sub", ""))
+        target_clean = os.path.normpath(raw_t) if os.path.isabs(raw_t) else raw_t.replace("/", " \\ ")
         cat_str = item["label"]  # Immer die saubere Kategorie (kein Suffix wie "(Original)"!)
 
         if not is_dup:
@@ -8538,10 +8609,11 @@ class App(tk.Tk):
         apply_to_preview: bool = False,
     ) -> int:
         """Weist den angegebenen Zeilen einen neuen Zielordner zu und speichert optional die Stichwort-Regel."""
-        clean_target = str(target_sub or "").strip().replace("\\", "/")
-        if not clean_target:
+        raw_t = str(target_sub or "").strip()
+        if not raw_t:
             return 0
-        clean_label = str(label or "").strip() or clean_target.split("/")[-1]
+        clean_target = os.path.normpath(raw_t) if os.path.isabs(raw_t) else raw_t.replace("\\", "/")
+        clean_label = str(label or "").strip() or os.path.basename(clean_target.rstrip("/\\")) or clean_target
         clean_kw = str(keyword or "").strip().lower()
 
         updated_rids = set()
@@ -8552,6 +8624,11 @@ class App(tk.Tk):
                 continue
             item["target_sub"] = clean_target
             item["label"] = clean_label
+            if item.get("action") == "Überspringen":
+                if item.get("is_duplicate"):
+                    item["action"] = "Mitkopieren"
+                else:
+                    item["action"] = "Verschieben" if self.action_mode.get() == "move" else "Kopieren"
             updated_rids.add(rid)
             if item.get("has_duplicates"):
                 updated_originals.append(item)
@@ -10621,36 +10698,45 @@ class App(tk.Tk):
     def execute_sort(self):
         items_to_process = []
         dest_base = Path(self.target_dir.get().strip())
+        uses_dest_base = False
+        custom_roots = []
 
         for row_id, item in self.preview_items.items():
             act = item.get("action", "")
             is_dir = bool(item.get("is_dir", False))
-            if act in ["Kopieren", "Verschieben"]:
-                target_dir = dest_base / item["target_sub"]
-                target_file = target_dir / item["name"]
-                items_to_process.append({
-                    "src_path": item["src_path"],
-                    "dest_dir": target_dir,
-                    "dest_file": target_file,
-                    "action": "copy" if "Kopieren" in act else "move",
-                    "is_dup": False,
-                    "is_dir": is_dir,
-                    "is_cloud_only": bool(item.get("is_cloud_only", False)),
-                })
-            elif act == "Mitkopieren":
-                target_dir = dest_base / item["target_sub"]
-                stem = item["src_path"].stem
-                suffix = item["src_path"].suffix
-                target_file = target_dir / f"{stem}_01{suffix}"
-                items_to_process.append({
-                    "src_path": item["src_path"],
-                    "dest_dir": target_dir,
-                    "dest_file": target_file,
-                    "action": "copy" if "Kopieren" in act else "move",
-                    "is_dup": True,
-                    "is_dir": is_dir,
-                    "is_cloud_only": bool(item.get("is_cloud_only", False)),
-                })
+            if act in ["Kopieren", "Verschieben", "Mitkopieren"]:
+                raw_sub = str(item.get("target_sub") or "01_Eingang_Inbox").strip()
+                if os.path.isabs(raw_sub):
+                    target_dir = Path(os.path.normpath(raw_sub))
+                    if target_dir not in custom_roots:
+                        custom_roots.append(target_dir)
+                else:
+                    target_dir = dest_base / raw_sub
+                    uses_dest_base = True
+                if act == "Mitkopieren":
+                    stem = item["src_path"].stem
+                    suffix = item["src_path"].suffix
+                    target_file = target_dir / f"{stem}_01{suffix}"
+                    items_to_process.append({
+                        "src_path": item["src_path"],
+                        "dest_dir": target_dir,
+                        "dest_file": target_file,
+                        "action": "copy",
+                        "is_dup": True,
+                        "is_dir": is_dir,
+                        "is_cloud_only": bool(item.get("is_cloud_only", False)),
+                    })
+                else:
+                    target_file = target_dir / item["name"]
+                    items_to_process.append({
+                        "src_path": item["src_path"],
+                        "dest_dir": target_dir,
+                        "dest_file": target_file,
+                        "action": "copy" if "Kopieren" in act else "move",
+                        "is_dup": False,
+                        "is_dir": is_dir,
+                        "is_cloud_only": bool(item.get("is_cloud_only", False)),
+                    })
 
         if not items_to_process:
             self.show_notice("Keine Aktionen", "Es sind keine Dokumente zum Kopieren oder Verschieben markiert.", kind="info")
@@ -10679,10 +10765,12 @@ class App(tk.Tk):
                     p_it["action"] = "Kopieren"
                     self.update_row_display(rid)
 
-        can_write, err_msg = self.check_write_permission(dest_base)
-        if not can_write:
-            self.show_notice("Fehlende Schreibrechte", "In das gewählte Zielverzeichnis kann nicht geschrieben werden.", str(err_msg), kind="error")
-            return
+        check_targets = ([dest_base] if uses_dest_base else []) + custom_roots
+        for chk_dir in check_targets:
+            can_write, err_msg = self.check_write_permission(chk_dir)
+            if not can_write:
+                self.show_notice("Fehlende Schreibrechte", f"In das gewählte Zielverzeichnis ({chk_dir}) kann nicht geschrieben werden.", str(err_msg), kind="error")
+                return
 
         is_copy = (self.action_mode.get() == "copy")
         has_dirs = any(it.get("is_dir") for it in items_to_process)
