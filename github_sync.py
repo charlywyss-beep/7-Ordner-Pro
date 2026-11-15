@@ -129,19 +129,118 @@ def filter_meaningful_dirty_lines(porcelain_output):
     return dirty
 
 
+def _ver_tuple(ver_str):
+    import re
+    m = re.findall(r"\d+", str(ver_str or ""))
+    if not m:
+        return (0,)
+    return tuple(int(x) for x in m)
+
+
+def _extract_version_from_source(text):
+    import re
+    m = re.search(r'APP_VERSION\s*=\s*["\'](v?\d+(?:\.\d+)+)["\']', text or "")
+    return m.group(1) if m else ""
+
+
 def derive_github_urls(remote_url, branch="main"):
     clean = (remote_url or DEFAULT_REMOTE_URL).strip()
+    if clean.startswith("git@github.com:"):
+        clean = "https://github.com/" + clean[len("git@github.com:"):]
     base = clean[:-4] if clean.endswith(".git") else clean
     base = base.rstrip("/")
     repo_name = base.split("/")[-1] if "/" in base else DEFAULT_REPO_NAME
     branch_name = (branch or "main").strip() or "main"
+    owner_repo = ""
+    if "github.com/" in base:
+        tail = base.split("github.com/", 1)[1].strip("/")
+        parts = [p for p in tail.split("/") if p]
+        if len(parts) >= 2:
+            owner_repo = f"{parts[0]}/{parts[1]}"
+    raw_version_url = (
+        f"https://raw.githubusercontent.com/{owner_repo}/{branch_name}/app.pyw"
+        if owner_repo else f"{base}/raw/{branch_name}/app.pyw"
+    )
+    api_commits_url = (
+        f"https://api.github.com/repos/{owner_repo}/commits?sha={branch_name}&per_page=5"
+        if owner_repo else ""
+    )
     return {
+        "repo_web_url": base,
         "new_repo_url": f"https://github.com/new?name={repo_name}",
         "raw_exe_url": f"{base}/raw/{branch_name}/{EXE_FILENAME}",
+        "raw_version_url": raw_version_url,
+        "api_commits_url": api_commits_url,
     }
 
 
-def get_git_info(app_version="v1.0.51"):
+def fetch_remote_release_info(remote_url=None, branch="main", timeout=5):
+    """Prüft online auf GitHub die neueste APP_VERSION (ohne API-Rate-Limit via raw.githubusercontent.com)."""
+    import urllib.request
+    import time
+    import json
+
+    urls = derive_github_urls(remote_url, branch)
+    res = {
+        "online": False,
+        "remote_version": "",
+        "remote_last_commit": "",
+        "remote_last_date": "",
+        "remote_commits": [],
+        "error": "",
+        "urls": urls,
+    }
+    raw_url = urls.get("raw_version_url") or ""
+    if not raw_url:
+        res["error"] = "Keine gültige GitHub-URL."
+        return res
+
+    sep = "&" if "?" in raw_url else "?"
+    req = urllib.request.Request(
+        f"{raw_url}{sep}t={int(time.time())}",
+        headers={
+            "User-Agent": "7-Ordner-Pro-Updater/1.0",
+            "Cache-Control": "no-cache",
+            "Pragma": "no-cache",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            chunk = resp.read(16384).decode("utf-8", errors="replace")
+        res["online"] = True
+        res["remote_version"] = _extract_version_from_source(chunk)
+    except Exception as e:
+        res["error"] = str(e)
+        return res
+
+    # Best-effort Commit-Metadaten (darf am API-Rate-Limit scheitern, ohne Versionscheck zu stören)
+    api_url = urls.get("api_commits_url") or ""
+    if api_url:
+        try:
+            api_req = urllib.request.Request(
+                api_url,
+                headers={"User-Agent": "7-Ordner-Pro-Updater/1.0", "Accept": "application/vnd.github+json"},
+            )
+            with urllib.request.urlopen(api_req, timeout=min(timeout, 3)) as aresp:
+                commits = json.loads(aresp.read().decode("utf-8", errors="replace"))
+            if isinstance(commits, list) and commits:
+                items = []
+                for idx, c in enumerate(commits[:5]):
+                    sha = str(c.get("sha") or "")[:7]
+                    commit_obj = c.get("commit") or {}
+                    msg = str(commit_obj.get("message") or "").splitlines()[0]
+                    dt = str((commit_obj.get("author") or {}).get("date") or "")[:10]
+                    if idx == 0:
+                        res["remote_last_commit"] = f"{sha} {msg}".strip()
+                        res["remote_last_date"] = dt
+                    items.append(f"{sha} | {dt} | {msg}")
+                res["remote_commits"] = items
+        except Exception:
+            pass
+    return res
+
+
+def get_git_info(app_version="v1.0.52"):
     """Liest Git-Status, Versionsvergleich, Historie und Download-Links aus."""
     repo_dir = find_repo_dir()
     exe_path = os.path.join(repo_dir, EXE_FILENAME)
@@ -179,6 +278,41 @@ def get_git_info(app_version="v1.0.51"):
     }
 
     if not info["is_git"]:
+        remote_url = info.get("remote_url") or DEFAULT_REMOTE_URL
+        branch = info.get("branch") or "main"
+        rel = fetch_remote_release_info(remote_url, branch, timeout=5)
+        urls = rel.get("urls") or derive_github_urls(remote_url, branch)
+        info["remote_url"] = remote_url
+        info["branch"] = branch
+        info["has_remote_ref"] = True
+        info["raw_exe_url"] = urls.get("raw_exe_url", "")
+        info["new_repo_url"] = urls.get("new_repo_url", info.get("new_repo_url", ""))
+        info["can_self_update"] = getattr(sys, "frozen", False)
+        if rel.get("remote_last_commit"):
+            info["remote_last_commit"] = rel["remote_last_commit"]
+        if rel.get("remote_last_date"):
+            info["remote_last_date"] = rel["remote_last_date"]
+        if rel.get("remote_commits"):
+            info["remote_commits"] = rel["remote_commits"]
+        rv = rel.get("remote_version") or ""
+        info["remote_version"] = rv
+        if not rel.get("online"):
+            info["sync_state"] = "offline"
+            info["sync_title"] = f"Offline / GitHub nicht erreichbar ({app_version})"
+            info["sync_detail"] = "Standalone-/USB-Modus (ohne Git). Online-Prüfung fehlgeschlagen – Internet/Firewall prüfen."
+        elif rv and _ver_tuple(rv) > _ver_tuple(app_version):
+            info["sync_state"] = "remote_newer"
+            info["sync_title"] = f"Neue Version auf GitHub verfügbar: {rv} (Lokal: {app_version})"
+            info["sync_detail"] = "Standalone-/USB-Modus (ohne Git): Klick auf 'Jetzt von GitHub aktualisieren' lädt die neue .exe direkt, prüft sie und startet neu (Einstellungen bleiben erhalten)."
+        elif rv and _ver_tuple(app_version) > _ver_tuple(rv):
+            info["sync_state"] = "local_newer"
+            info["sync_title"] = f"Lokale Version ({app_version}) neuer als GitHub ({rv})"
+            info["sync_detail"] = "Standalone-/USB-Modus: Diese .exe ist neuer als der Online-Stand auf GitHub."
+        else:
+            info["sync_state"] = "in_sync"
+            shown_rv = rv or app_version
+            info["sync_title"] = f"Auf dem neuesten Stand mit GitHub ({shown_rv})"
+            info["sync_detail"] = "Standalone-/USB-Modus (ohne Git): Diese .exe entspricht der neuesten GitHub-Version."
         return info
 
     try:
@@ -366,9 +500,167 @@ def git_push_upload(app_version="v1.0.51"):
         return {"success": False, "error": str(e), "message": str(e), "git_info": get_git_info(app_version)}
 
 
-def git_pull_update(app_version="v1.0.51"):
+def self_update_exe_from_github(app_version="v1.0.52", remote_url=None, branch="main"):
+    """Dubeli-sicheres Direkt-Update der laufenden .exe von GitHub (USB-/Standalone-Modus ohne Git)."""
+    import urllib.request
+    import tempfile
+
+    if not getattr(sys, "frozen", False):
+        return {
+            "success": False,
+            "error": "Kein Git-Repository gefunden. Das automatische .exe-Direktupdate funktioniert im kompilierten Programm (.exe) oder im Git-Ordner.",
+        }
+
+    exe_path = os.path.abspath(sys.executable)
+    exe_dir = os.path.dirname(exe_path)
+
+    # 1. Schreibrechte im Programmordner prüfen BEVOR heruntergeladen wird
+    probe_path = os.path.join(exe_dir, f".update_writecheck_{os.getpid()}.tmp")
+    try:
+        with open(probe_path, "wb") as pf:
+            pf.write(b"ok")
+        os.remove(probe_path)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Keine Schreibrechte im Programmordner ({exe_dir}): {e}. Bitte als Administrator ausführen oder auf einen beschreibbaren Ordner/USB-Stick kopieren.",
+        }
+
+    # 2. Online-Versionscheck vor dem Download (verhindert unnötigen 20-MB-Download)
+    remote = remote_url or DEFAULT_REMOTE_URL
+    rel = fetch_remote_release_info(remote, branch, timeout=6)
+    if not rel.get("online"):
+        return {
+            "success": False,
+            "error": f"GitHub ist aktuell nicht erreichbar ({rel.get('error') or 'Offline'}). Bitte Internetverbindung prüfen.",
+            "git_info": get_git_info(app_version),
+        }
+
+    rv = rel.get("remote_version") or ""
+    if rv and _ver_tuple(rv) <= _ver_tuple(app_version):
+        return {
+            "success": True,
+            "already_up_to_date": True,
+            "message": f"Bereits aktuell ({app_version})! Auf GitHub liegt aktuell {rv}.",
+            "output": f"Already up to date ({app_version} >= {rv}). Kein Download nötig.",
+            "git_info": get_git_info(app_version),
+        }
+
+    urls = rel.get("urls") or derive_github_urls(remote, branch)
+    raw_exe_url = urls.get("raw_exe_url") or ""
+    if not raw_exe_url:
+        return {"success": False, "error": "Keine gültige Download-URL für die .exe ermittelt."}
+
+    tmp_path = exe_path + ".update.tmp"
+    bak_path = exe_path + ".bak"
+    try:
+        if os.path.exists(tmp_path):
+            os.remove(tmp_path)
+    except Exception:
+        pass
+
+    # 3. Streaming-Download in temporäre Datei
+    downloaded = 0
+    expected_len = None
+    try:
+        req = urllib.request.Request(
+            raw_exe_url,
+            headers={"User-Agent": "7-Ordner-Pro-Updater/1.0", "Cache-Control": "no-cache"},
+        )
+        with urllib.request.urlopen(req, timeout=90) as resp:
+            cl_hdr = resp.headers.get("Content-Length")
+            if cl_hdr and cl_hdr.isdigit():
+                expected_len = int(cl_hdr)
+            with open(tmp_path, "wb") as out_f:
+                while True:
+                    buf = resp.read(65536)
+                    if not buf:
+                        break
+                    out_f.write(buf)
+                    downloaded += len(buf)
+
+        # 4. Harte Integritätsprüfung: Mindestgröße >= 5 MB + gültige Windows-PE-Signatur "MZ"
+        min_bytes = 5 * 1024 * 1024
+        if expected_len is not None and downloaded != expected_len:
+            raise ValueError(f"Unvollständiger Download ({downloaded} von {expected_len} Bytes).")
+        if downloaded < min_bytes:
+            raise ValueError(f"Heruntergeladene Datei ist zu klein ({downloaded} Bytes) – vermutlich keine gültige .exe.")
+        with open(tmp_path, "rb") as vf:
+            magic = vf.read(2)
+        if magic != b"MZ":
+            raise ValueError("Heruntergeladene Datei ist keine gültige Windows-EXE (MZ-Signatur fehlt).")
+    except Exception as e:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+        return {
+            "success": False,
+            "error": f"Download/Prüfung fehlgeschlagen (alte Version bleibt unberührt): {e}",
+            "git_info": get_git_info(app_version),
+        }
+
+    # 5. Sicheres Austausch-Skript in %TEMP% erstellen und detached starten
+    try:
+        cmd_fd, cmd_path = tempfile.mkstemp(prefix="7ordner_update_", suffix=".cmd")
+        os.close(cmd_fd)
+        cmd_lines = [
+            "@echo off",
+            "chcp 65001 >nul",
+            "setlocal",
+            f'set "TARGET={exe_path}"',
+            f'set "NEWEXE={tmp_path}"',
+            f'set "BAKEXE={bak_path}"',
+            'if not exist "%NEWEXE%" goto :end',
+            'copy /Y "%TARGET%" "%BAKEXE%" >nul 2>nul',
+            "set /a tries=0",
+            ":waitloop",
+            "ping -n 2 127.0.0.1 >nul",
+            'move /Y "%NEWEXE%" "%TARGET%" >nul 2>nul',
+            "if errorlevel 1 (",
+            "  set /a tries+=1",
+            "  if %tries% LSS 30 goto :waitloop",
+            "  goto :end",
+            ")",
+            'start "" "%TARGET%"',
+            ":end",
+            'del "%~f0" >nul 2>nul',
+        ]
+        with open(cmd_path, "w", encoding="utf-8", newline="\r\n") as cf:
+            cf.write("\r\n".join(cmd_lines) + "\r\n")
+
+        flags = 0x08000000 | 0x00000008  # CREATE_NO_WINDOW | DETACHED_PROCESS
+        subprocess.Popen(
+            ["cmd.exe", "/c", cmd_path],
+            cwd=tempfile.gettempdir(),
+            creationflags=flags,
+            close_fds=True,
+        )
+    except Exception as e:
+        try:
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+        except Exception:
+            pass
+        return {"success": False, "error": f"Update-Starter konnte nicht gestartet werden: {e}"}
+
+    size_mb = downloaded / (1024 * 1024)
+    shown_rv = rv or "neu"
+    return {
+        "success": True,
+        "self_updating": True,
+        "remote_version": rv,
+        "message": f"Update ({shown_rv}, {size_mb:.1f} MB) geladen – App wird ersetzt und startet gleich neu...",
+        "output": f"Quelle: {raw_exe_url}\nGröße: {size_mb:.1f} MB (MZ-Prüfung OK)\nBackup: {bak_path}\nEinstellungen (window_state.json) bleiben erhalten.",
+    }
+
+
+def git_pull_update(app_version="v1.0.52"):
     """Lädt den neuesten Stand von GitHub herunter (window_state.json bleibt erhalten)."""
     repo_dir = find_repo_dir()
+    if not repo_dir or not os.path.exists(os.path.join(repo_dir, ".git")):
+        return self_update_exe_from_github(app_version=app_version)
     state_path = os.path.join(repo_dir, STATE_FILENAME)
     saved_state = None
     if os.path.exists(state_path):

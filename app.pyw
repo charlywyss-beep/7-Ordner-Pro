@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.51"
+APP_VERSION = "v1.0.52"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -3279,8 +3279,33 @@ class GitHubSyncDialog(tk.Toplevel):
         self.configure(bg=self.p["bg"])
         self.bind("<Escape>", lambda e: self.destroy())
         self._build_ui()
-        self.refresh_git_info()
+        self.refresh_git_info({
+            "sync_state": "checking",
+            "app_version": APP_VERSION,
+            "sync_title": f"Prüfe GitHub-Stand ({APP_VERSION})...",
+            "sync_detail": "Online-Abgleich mit GitHub läuft im Hintergrund...",
+            "branch": "main",
+            "remote_url": github_sync.DEFAULT_REMOTE_URL,
+            "has_remote_ref": True,
+        })
         self._center_and_show()
+        self.after(40, self._load_git_info_async)
+
+    def _load_git_info_async(self):
+        def _worker():
+            data = github_sync.get_git_info(APP_VERSION)
+            def _apply():
+                try:
+                    if self.winfo_exists():
+                        self.refresh_git_info(data)
+                        self.app.refresh_git_badge()
+                except Exception:
+                    pass
+            try:
+                self.after(0, _apply)
+            except Exception:
+                pass
+        threading.Thread(target=_worker, daemon=True).start()
 
     def _center_and_show(self):
         self.update_idletasks()
@@ -3590,6 +3615,12 @@ class GitHubSyncDialog(tk.Toplevel):
             p_bg = "#047857" if self._dark else "#d1fae5"
             badge_txt = f"Synchron ({APP_VERSION})"
             self.btn_push.update_style(bg=self.p["btn_bg"], fg=self.p["btn_fg"], hover_bg=self.p["btn_hover"], border_color=self.p["border"])
+        elif st == "checking":
+            b_bg, b_bd, t_fg, d_fg, p_bg = self.p["card"], self.p["border"], self.p["fg"], self.p["muted"], self.p["subcard"]
+            badge_txt = "Prüfe..."
+        elif st == "offline":
+            b_bg, b_bd, t_fg, d_fg, p_bg = self.p["card"], self.p["border"], self.p["fg"], self.p["muted"], self.p["subcard"]
+            badge_txt = "Offline"
         else:
             b_bg, b_bd, t_fg, d_fg, p_bg = self.p["card"], self.p["border"], self.p["fg"], self.p["muted"], self.p["subcard"]
             badge_txt = "Kein Git"
@@ -3744,8 +3775,11 @@ class GitHubSyncDialog(tk.Toplevel):
                 self.app.refresh_git_badge()
                 if res.get("success"):
                     out = res.get("output") or ""
-                    if "Already up to date" in out or "Already up-to-date" in out:
+                    if res.get("already_up_to_date") or "Already up to date" in out or "Already up-to-date" in out:
                         self.app.show_notice("GitHub Update", res.get("message") or "Bereits aktuell.", kind="info", auto_close_ms=3000)
+                    elif res.get("self_updating"):
+                        self.app.show_notice("Update wird installiert", res.get("message") or "Neue .exe geladen – App startet jetzt neu.", kind="success", auto_close_ms=2500)
+                        self.after(600, lambda: self.app._restart_after_git_update(spawn_new=False))
                     else:
                         self.app.show_notice("Update eingespielt", "Neue Version geladen – App startet jetzt neu.", kind="success", auto_close_ms=2000)
                         self.after(500, self.app._restart_after_git_update)
@@ -10476,18 +10510,19 @@ class App(tk.Tk):
         dlg = GitHubSyncDialog(self)
         self.wait_window(dlg)
 
-    def _restart_after_git_update(self):
+    def _restart_after_git_update(self, spawn_new=True):
         try:
             self._save_app_state()
         except Exception:
             pass
-        try:
-            if getattr(sys, "frozen", False):
-                subprocess.Popen([sys.executable], cwd=os.path.dirname(sys.executable))
-            else:
-                subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=os.path.dirname(os.path.abspath(__file__)))
-        except Exception:
-            pass
+        if spawn_new:
+            try:
+                if getattr(sys, "frozen", False):
+                    subprocess.Popen([sys.executable], cwd=os.path.dirname(sys.executable))
+                else:
+                    subprocess.Popen([sys.executable, os.path.abspath(__file__)], cwd=os.path.dirname(os.path.abspath(__file__)))
+            except Exception:
+                pass
         try:
             self.destroy()
         finally:
