@@ -240,7 +240,7 @@ def fetch_remote_release_info(remote_url=None, branch="main", timeout=5):
     return res
 
 
-def get_git_info(app_version="v1.0.54"):
+def get_git_info(app_version="v1.0.55"):
     """Liest Git-Status, Versionsvergleich, Historie und Download-Links aus."""
     repo_dir = find_repo_dir()
     exe_path = os.path.join(repo_dir, EXE_FILENAME)
@@ -500,7 +500,7 @@ def git_push_upload(app_version="v1.0.51"):
         return {"success": False, "error": str(e), "message": str(e), "git_info": get_git_info(app_version)}
 
 
-def self_update_exe_from_github(app_version="v1.0.54", remote_url=None, branch="main"):
+def self_update_exe_from_github(app_version="v1.0.55", remote_url=None, branch="main"):
     """Dubeli-sicheres Direkt-Update der laufenden .exe von GitHub (USB-/Standalone-Modus ohne Git)."""
     import urllib.request
     import tempfile
@@ -656,7 +656,7 @@ def self_update_exe_from_github(app_version="v1.0.54", remote_url=None, branch="
     }
 
 
-def git_pull_update(app_version="v1.0.54"):
+def git_pull_update(app_version="v1.0.55"):
     """Lädt den neuesten Stand von GitHub herunter (window_state.json bleibt erhalten)."""
     repo_dir = find_repo_dir()
     if not repo_dir or not os.path.exists(os.path.join(repo_dir, ".git")):
@@ -879,14 +879,18 @@ def protect_usb_tools_tree(target_dir: str) -> bool:
     if os.path.isdir(tools_root):
         ok = _run_icacls([tools_root, "/inheritance:r", "/Q"]) and ok
         ok = _run_icacls([tools_root, "/grant", "*S-1-1-0:(OI)(CI)RX", "*S-1-5-32-544:(OI)(CI)F", "/Q"]) and ok
-        ok = _run_icacls([tools_root, "/deny", "*S-1-1-0:(OI)(CI)(DE,DC,WD,AD)", "/Q"]) and ok
-        for rdir, _dirs, fnames in os.walk(tools_root):
+        for rdir, dirs, fnames in os.walk(tools_root):
+            for dn in dirs:
+                _run_icacls([os.path.join(rdir, dn), "/reset", "/Q"])
             for fn in fnames:
+                fp = os.path.join(rdir, fn)
                 if fn.lower().endswith(".json"):
-                    jp = os.path.join(rdir, fn)
-                    _run_icacls([jp, "/inheritance:r", "/Q"])
-                    _run_icacls([jp, "/grant", "*S-1-1-0:(R,W)", "*S-1-5-32-544:F", "/Q"])
-                    _run_icacls([jp, "/deny", "*S-1-1-0:(DE)", "/Q"])
+                    _run_icacls([fp, "/inheritance:r", "/Q"])
+                    _run_icacls([fp, "/grant", "*S-1-1-0:(R,W)", "*S-1-5-32-544:F", "/Q"])
+                    _run_icacls([fp, "/deny", "*S-1-1-0:(DE)", "/Q"])
+                else:
+                    _run_icacls([fp, "/reset", "/Q"])
+        ok = _run_icacls([tools_root, "/deny", "*S-1-1-0:(OI)(CI)(DE,DC,WD,AD)", "/Q"]) and ok
 
     if drive_root:
         usb_stick_dir = os.path.join(drive_root, "USB_Stick")
