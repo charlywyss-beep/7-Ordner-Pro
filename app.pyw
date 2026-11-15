@@ -1952,6 +1952,16 @@ def _draw_vector_icon(d: ImageDraw.ImageDraw, kind: str, x0: int, y0: int, size:
         d.arc([px(6.1, 4.3), px(9.9, 8.1)], start=180, end=360, fill=c_accent_in, width=max(2, round(1.3 * u)))
         d.rounded_rectangle([px(5.2, 6.8), px(10.8, 10.9)], radius=max(1, round(1.0 * u)), fill=c_accent_in)
 
+    elif kind == "globe":
+        # Gut sichtbarer 3x-Vektor-Globus (ersetzt blasses Unicode-Emoji)
+        d.ellipse([px(1.5, 1.5), px(14.5, 14.5)], fill="#0ea5e9")
+        d.ellipse([px(4.7, 1.7), px(11.3, 14.3)], outline="#e0f2fe", width=max(1, round(1.05 * u)))
+        d.line([px(8.0, 1.7), px(8.0, 14.3)], fill="#ffffff", width=max(1, round(1.05 * u)))
+        d.line([px(1.7, 8.0), px(14.3, 8.0)], fill="#ffffff", width=max(1, round(1.05 * u)))
+        d.line([px(2.7, 4.8), px(13.3, 4.8)], fill="#e0f2fe", width=max(1, round(0.95 * u)))
+        d.line([px(2.7, 11.2), px(13.3, 11.2)], fill="#e0f2fe", width=max(1, round(0.95 * u)))
+        d.ellipse([px(1.5, 1.5), px(14.5, 14.5)], outline="#0369a1", width=max(2, round(1.15 * u)))
+
 def attach_tooltip(widget, text: str):
     """Zeigt beim Schweben ueber einem Widget einen dezenten Hinweis, ohne bestehende Hover-Events zu ueberschreiben."""
     state = {"win": None, "job": None}
@@ -3338,7 +3348,7 @@ class GitHubSyncDialog(tk.Toplevel):
         tk.Label(url_hdr, text="GitHub Repository URL:", font=("Segoe UI", 9, "bold"), bg=p["card"], fg=p["muted"]).pack(side="left", pady=3)
         self.btn_new_repo = ModernRoundedButton(
             url_hdr,
-            text="🌐 Auf GitHub anlegen ↗",
+            text="Auf GitHub anlegen ↗",
             command=self._open_new_repo,
             bg="#312e81" if self._dark else "#eef2ff",
             fg="#c7d2fe" if self._dark else "#3730a3",
@@ -3347,7 +3357,8 @@ class GitHubSyncDialog(tk.Toplevel):
             font=("Segoe UI", 8, "bold"),
             r=8,
             padx=10,
-            pady=3,
+            pady=4,
+            icon_kind="globe",
         )
         self.btn_new_repo.pack(side="right")
 
@@ -3486,9 +3497,9 @@ class GitHubSyncDialog(tk.Toplevel):
         self.btn_exe_dl.update_style(text=dl_lbl)
 
         if data.get("has_remote_ref"):
-            self.btn_new_repo.update_style(text="🌐 Auf GitHub öffnen ↗")
+            self.btn_new_repo.update_style(text="Auf GitHub öffnen ↗")
         else:
-            self.btn_new_repo.update_style(text="🌐 Auf GitHub anlegen ↗")
+            self.btn_new_repo.update_style(text="Auf GitHub anlegen ↗")
 
         st = data.get("sync_state") or "no_git"
         if st in ("local_newer", "local_ahead"):
