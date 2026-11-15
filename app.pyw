@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.49"
+APP_VERSION = "v1.0.50"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -581,22 +581,22 @@ def open_path_in_suchmaschine(target_path: str | Path | None = None, auto_start:
         elif info.get("config_file"):
             _save_path_to_suchmaschine_config(Path(info["config_file"]), norm_path)
 
-    if not server_running and auto_start:
-        cmd = None
-        cwd = info.get("dir") or None
+    def _build_suchmaschine_cmd():
+        extra = ["--open-path", norm_path] if norm_path else []
         if info.get("exe") and os.path.isfile(info["exe"]):
-            cmd = [info["exe"], "--no-browser"]
-            cwd = os.path.dirname(info["exe"])
-        elif info.get("script") and os.path.isfile(info["script"]):
+            return [info["exe"], *extra], os.path.dirname(info["exe"]), True
+        if info.get("script") and os.path.isfile(info["script"]):
             py_exe = sys.executable if not getattr(sys, "frozen", False) else "python"
             pyw = os.path.join(os.path.dirname(py_exe), "pythonw.exe")
             runner = pyw if os.path.isfile(pyw) else py_exe
-            cmd = [runner, info["script"], "--no-browser"]
-            cwd = os.path.dirname(info["script"])
-        elif info.get("vbs") and os.path.isfile(info["vbs"]):
-            cmd = ["wscript.exe", info["vbs"]]
-            cwd = os.path.dirname(info["vbs"])
+            return [runner, info["script"], *extra], os.path.dirname(info["script"]), True
+        if info.get("vbs") and os.path.isfile(info["vbs"]):
+            return ["wscript.exe", info["vbs"]], os.path.dirname(info["vbs"]), False
+        return None, None, False
 
+    opened_native = False
+    if not server_running and auto_start:
+        cmd, cwd, has_native = _build_suchmaschine_cmd()
         if not cmd:
             return {
                 "success": False,
@@ -609,6 +609,7 @@ def open_path_in_suchmaschine(target_path: str | Path | None = None, auto_start:
         try:
             subprocess.Popen(cmd, cwd=cwd, creationflags=creation_flags)
             started_server = True
+            opened_native = has_native
         except Exception as exc:
             return {"success": False, "error": f"Datei-Suchmaschine konnte nicht gestartet werden: {exc}"}
 
@@ -638,25 +639,16 @@ def open_path_in_suchmaschine(target_path: str | Path | None = None, auto_start:
         except Exception:
             reused_existing = False
 
-    if not reused_existing:
-        opened_app = False
-        if os.name == "nt":
-            edge_candidates = [
-                shutil.which("msedge") or "",
-                os.path.join(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)"), "Microsoft", "Edge", "Application", "msedge.exe"),
-                os.path.join(os.environ.get("PROGRAMFILES", r"C:\Program Files"), "Microsoft", "Edge", "Application", "msedge.exe"),
-                os.path.join(os.environ.get("LOCALAPPDATA", ""), "Microsoft", "Edge", "Application", "msedge.exe"),
-            ]
-            for edge_exe in edge_candidates:
-                if edge_exe and os.path.isfile(edge_exe):
-                    try:
-                        cflags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
-                        subprocess.Popen([edge_exe, f"--app={url}"], creationflags=cflags)
-                        opened_app = True
-                        break
-                    except Exception:
-                        pass
-        if not opened_app:
+    if not reused_existing and not opened_native:
+        cmd, cwd, has_native = _build_suchmaschine_cmd()
+        if cmd and has_native:
+            try:
+                cflags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0) if os.name == "nt" else 0
+                subprocess.Popen(cmd, cwd=cwd, creationflags=cflags)
+                opened_native = True
+            except Exception:
+                opened_native = False
+        if not opened_native:
             try:
                 webbrowser.open(url)
             except Exception:

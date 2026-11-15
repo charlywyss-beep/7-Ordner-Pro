@@ -67,7 +67,7 @@ def parse_version_tuple(ver_str):
 def bump_patch_version(ver_str):
     maj, min_v, pat = parse_version_tuple(ver_str)
     if (maj, min_v, pat) == (0, 0, 0):
-        return "v1.0.49"
+        return "v1.0.50"
     return f"v{maj}.{min_v}.{pat + 1}"
 
 
@@ -141,7 +141,7 @@ def derive_github_urls(remote_url, branch="main"):
     }
 
 
-def get_git_info(app_version="v1.0.49"):
+def get_git_info(app_version="v1.0.50"):
     """Liest Git-Status, Versionsvergleich, Historie und Download-Links aus."""
     repo_dir = find_repo_dir()
     exe_path = os.path.join(repo_dir, EXE_FILENAME)
@@ -286,7 +286,7 @@ def get_git_info(app_version="v1.0.49"):
     return info
 
 
-def git_set_remote(remote_url, app_version="v1.0.49"):
+def git_set_remote(remote_url, app_version="v1.0.50"):
     repo_dir = find_repo_dir()
     url = (remote_url or "").strip()
     if not url:
@@ -301,7 +301,7 @@ def git_set_remote(remote_url, app_version="v1.0.49"):
         return {"success": False, "error": str(e)}
 
 
-def git_push_upload(app_version="v1.0.49"):
+def git_push_upload(app_version="v1.0.50"):
     """Erstellt bei Bedarf einen Commit (ohne window_state.json) und überträgt ihn nach GitHub."""
     repo_dir = find_repo_dir()
     logs = []
@@ -366,7 +366,7 @@ def git_push_upload(app_version="v1.0.49"):
         return {"success": False, "error": str(e), "message": str(e), "git_info": get_git_info(app_version)}
 
 
-def git_pull_update(app_version="v1.0.49"):
+def git_pull_update(app_version="v1.0.50"):
     """Lädt den neuesten Stand von GitHub herunter (window_state.json bleibt erhalten)."""
     repo_dir = find_repo_dir()
     state_path = os.path.join(repo_dir, STATE_FILENAME)
@@ -408,7 +408,7 @@ def git_pull_update(app_version="v1.0.49"):
         return {"success": False, "error": str(e), "message": str(e), "git_info": get_git_info(app_version)}
 
 
-def git_rollback_version(commit_hash, app_version="v1.0.49"):
+def git_rollback_version(commit_hash, app_version="v1.0.50"):
     """Setzt sicher auf einen früheren Commit zurück (mit Git-Stash-Backup & window_state.json-Erhalt)."""
     repo_dir = find_repo_dir()
     commit_hash = (commit_hash or "").strip()
