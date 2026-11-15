@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.56"
+APP_VERSION = "v1.0.57"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -7519,7 +7519,7 @@ class App(tk.Tk):
             textvariable=self.step2_search_var,
             width=230,
             height=29,
-            placeholder="Live suchen (Name, Pfad, Ziel, Typ)…",
+            placeholder="Live suchen (Name, Datei, Pfad, Typ)…",
             on_commit=self.apply_step2_filters,
         )
         self.box_step2_search.pack(side="left", padx=(0, 8))
