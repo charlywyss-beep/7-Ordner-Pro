@@ -2849,12 +2849,18 @@ def apply_window_folder_icon(win, is_root: bool = False):
     """Setzt Windows-AppUserModelID, Win32-.ico (ohne Tkinter-Feder) und Taskbar-/Titelleisten-Icon."""
     global _APP_USER_MODEL_ID_SET
     if sys.platform.startswith("win") and not _APP_USER_MODEL_ID_SET:
-        try:
-            import ctypes
-            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SevenFolderPro.Organizer.1")
+        # Nur im Python-Script-Modus eigene AppUserModelID setzen (sonst gruppiert Windows
+        # unter pythonw.exe); bei kompilierter .exe wuerde eine abweichende AppID ein
+        # zweites Taskleisten-Icon neben der angehefteten .exe-Verknuepfung erzeugen.
+        if getattr(sys, "frozen", False):
             _APP_USER_MODEL_ID_SET = True
-        except Exception:
-            pass
+        else:
+            try:
+                import ctypes
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("SevenFolderPro.Organizer.1")
+                _APP_USER_MODEL_ID_SET = True
+            except Exception:
+                pass
     try:
         ico_path = ensure_app_ico_path()
         if ico_path:
