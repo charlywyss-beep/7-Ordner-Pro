@@ -196,8 +196,8 @@ def get_git_info(app_version="v1.0.48"):
             info["sync_state"] = "local_ahead"
             info["sync_title"] = f"Noch nicht auf GitHub hochgeladen ({app_version})"
             info["sync_detail"] = (
-                "Klicke oben rechts auf „Auf GitHub anlegen“, erstelle das Repo auf GitHub "
-                "und klicke anschließend auf „Stand nach GitHub hochladen“."
+                "Falls das Repo auf GitHub noch fehlt: auf „Auf GitHub anlegen ↗“ klicken, "
+                "erstellen und anschließend auf „Stand nach GitHub hochladen“ klicken."
             )
         else:
             ref_ver = info["remote_version"] or info["git_version"]

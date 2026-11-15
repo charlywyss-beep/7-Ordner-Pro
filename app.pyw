@@ -3229,7 +3229,7 @@ class GitHubSyncDialog(tk.Toplevel):
 
     def _center_and_show(self):
         self.update_idletasks()
-        w = max(720, self.winfo_reqwidth())
+        w = max(790, self.winfo_reqwidth())
         h = self.winfo_reqheight()
         px = self.app.winfo_rootx()
         py = self.app.winfo_rooty()
@@ -3270,7 +3270,7 @@ class GitHubSyncDialog(tk.Toplevel):
         self.lbl_sync_title.pack(side="left", fill="x", expand=True)
         self.lbl_sync_badge = tk.Label(banner_top, text="Lade...", font=("Segoe UI", 8, "bold"), bg=p["subcard"], fg=p["fg"], padx=8, pady=2)
         self.lbl_sync_badge.pack(side="right", padx=(8, 0))
-        self.lbl_sync_detail = tk.Label(self.sync_banner, text="", font=("Segoe UI", 9), bg=p["card"], fg=p["muted"], anchor="w", justify="left", wraplength=660)
+        self.lbl_sync_detail = tk.Label(self.sync_banner, text="", font=("Segoe UI", 9), bg=p["card"], fg=p["muted"], anchor="w", justify="left", wraplength=720)
         self.lbl_sync_detail.pack(fill="x", pady=(2, 0))
         self._banner_inner = banner_top
 
@@ -3309,6 +3309,7 @@ class GitHubSyncDialog(tk.Toplevel):
             r=8,
             padx=14,
             pady=7,
+            min_width=720,
         )
         self.btn_exe_dl.pack(fill="x")
 
@@ -3327,17 +3328,28 @@ class GitHubSyncDialog(tk.Toplevel):
         r2 = tk.Frame(repo_card, bg=p["card"])
         r2.pack(fill="x", pady=(0, 6))
         tk.Label(r2, text="Letzter Git-Commit:", font=("Segoe UI", 9), bg=p["card"], fg=p["muted"]).pack(side="left", anchor="n")
-        self.lbl_commit = tk.Label(r2, text="-", font=("Consolas", 9, "bold"), bg=p["card"], fg=p["accent"], anchor="w", justify="left", wraplength=540)
+        self.lbl_commit = tk.Label(r2, text="-", font=("Consolas", 9, "bold"), bg=p["card"], fg=p["accent"], anchor="w", justify="left", wraplength=590)
         self.lbl_commit.pack(side="left", fill="x", expand=True, padx=(8, 0))
 
         tk.Frame(repo_card, bg=p["border"], height=1).pack(fill="x", pady=(2, 6))
 
         url_hdr = tk.Frame(repo_card, bg=p["card"])
-        url_hdr.pack(fill="x", pady=(0, 4))
-        tk.Label(url_hdr, text="GitHub Repository URL:", font=("Segoe UI", 9, "bold"), bg=p["card"], fg=p["muted"]).pack(side="left")
-        lbl_new_repo = tk.Label(url_hdr, text="Auf GitHub anlegen ↗", font=("Segoe UI", 9, "underline"), bg=p["card"], fg=p["link"], cursor="hand2")
-        lbl_new_repo.pack(side="right")
-        lbl_new_repo.bind("<Button-1>", lambda e: self._open_new_repo())
+        url_hdr.pack(fill="x", pady=(0, 5))
+        tk.Label(url_hdr, text="GitHub Repository URL:", font=("Segoe UI", 9, "bold"), bg=p["card"], fg=p["muted"]).pack(side="left", pady=3)
+        self.btn_new_repo = ModernRoundedButton(
+            url_hdr,
+            text="🌐 Auf GitHub anlegen ↗",
+            command=self._open_new_repo,
+            bg="#312e81" if self._dark else "#eef2ff",
+            fg="#c7d2fe" if self._dark else "#3730a3",
+            hover_bg="#3730a3" if self._dark else "#e0e7ff",
+            border_color="#6366f1" if self._dark else "#818cf8",
+            font=("Segoe UI", 8, "bold"),
+            r=8,
+            padx=10,
+            pady=3,
+        )
+        self.btn_new_repo.pack(side="right")
 
         url_row = tk.Frame(repo_card, bg=p["card"])
         url_row.pack(fill="x")
@@ -3399,7 +3411,7 @@ class GitHubSyncDialog(tk.Toplevel):
         # 6. Footer Action Buttons
         ftr = tk.Frame(root, bg=p["bg"])
         ftr.pack(fill="x", pady=(4, 0))
-        tk.Label(ftr, text="Commit & Push ohne window_state.json", font=("Segoe UI", 8), bg=p["bg"], fg=p["muted"]).pack(side="left")
+        tk.Label(ftr, text="Ohne window_state.json", font=("Segoe UI", 8), bg=p["bg"], fg=p["muted"]).pack(side="left")
 
         btn_box = tk.Frame(ftr, bg=p["bg"])
         btn_box.pack(side="right")
@@ -3458,7 +3470,7 @@ class GitHubSyncDialog(tk.Toplevel):
         self.txt_log.configure(state="disabled")
         if not was_packed:
             self.update_idletasks()
-            w = max(720, self.winfo_reqwidth())
+            w = max(790, self.winfo_reqwidth())
             h = self.winfo_reqheight()
             self.geometry(f"{w}x{h}")
 
