@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.58"
+APP_VERSION = "v1.0.59"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -3263,7 +3263,8 @@ class GitHubSyncDialog(tk.Toplevel):
         self.title(f"GitHub Versions-Aktualisierung • {APP_VERSION}")
         apply_window_folder_icon(self)
         apply_dwm_dark_titlebar(self, self._dark)
-        self.resizable(False, False)
+        self.resizable(True, True)
+        self.minsize(790, 620)
         self.transient(parent_app)
 
         if self._dark:
@@ -3318,17 +3319,28 @@ class GitHubSyncDialog(tk.Toplevel):
                 pass
         threading.Thread(target=_worker, daemon=True).start()
 
+    def _fit_height(self, center=False):
+        try:
+            self.update_idletasks()
+            w = max(810, self.winfo_reqwidth() + 8)
+            scr_h = self.winfo_screenheight() or 900
+            max_h = max(580, scr_h - 64)
+            h = min(max_h, max(640, self.winfo_reqheight() + 18))
+            if center:
+                px = self.app.winfo_rootx()
+                py = self.app.winfo_rooty()
+                pw = self.app.winfo_width() or 1000
+                ph = self.app.winfo_height() or 700
+                x = max(16, px + (pw - w) // 2)
+                y = max(12, min(scr_h - h - 42, py + (ph - h) // 2))
+                self.geometry(f"{w}x{h}+{x}+{y}")
+            else:
+                self.geometry(f"{w}x{h}")
+        except Exception:
+            pass
+
     def _center_and_show(self):
-        self.update_idletasks()
-        w = max(790, self.winfo_reqwidth())
-        h = self.winfo_reqheight()
-        px = self.app.winfo_rootx()
-        py = self.app.winfo_rooty()
-        pw = self.app.winfo_width() or 1000
-        ph = self.app.winfo_height() or 700
-        x = max(16, px + (pw - w) // 2)
-        y = max(16, py + (ph - h) // 2)
-        self.geometry(f"{w}x{h}+{x}+{y}")
+        self._fit_height(center=True)
         self.grab_set()
         bring_window_to_front(self)
 
@@ -3513,15 +3525,10 @@ class GitHubSyncDialog(tk.Toplevel):
         )
         self.btn_rollback.pack(side="right")
 
-        # 5. Protokoll (erst sichtbar wenn Push/Pull/Rollback läuft)
-        self.log_frame = tk.Frame(root, bg=p["bg"])
-        self.txt_log = tk.Text(self.log_frame, height=5, font=("Consolas", 8), bg=p["log_bg"], fg=p["log_fg"], relief="flat", bd=0, padx=8, pady=6, wrap="word")
-        self.txt_log.pack(fill="x")
-        self.txt_log.configure(state="disabled")
-
-        # 6. Footer Action Buttons
-        ftr = tk.Frame(root, bg=p["bg"])
-        ftr.pack(fill="x", pady=(4, 0))
+        # 6. Footer Action Buttons ZUERST am unteren Rand verankern (niemals abschneiden!)
+        self._ftr_frame = tk.Frame(root, bg=p["bg"])
+        ftr = self._ftr_frame
+        ftr.pack(side="bottom", fill="x", pady=(10, 4))
         tk.Label(ftr, text="Ohne window_state.json", font=("Segoe UI", 8), bg=p["bg"], fg=p["muted"]).pack(side="left")
 
         btn_box = tk.Frame(ftr, bg=p["bg"])
@@ -3571,19 +3578,22 @@ class GitHubSyncDialog(tk.Toplevel):
         )
         self.btn_pull.pack(side="left")
 
+        # 5. Protokoll (erst sichtbar wenn Push/Pull/Rollback läuft)
+        self.log_frame = tk.Frame(root, bg=p["bg"])
+        self.txt_log = tk.Text(self.log_frame, height=5, font=("Consolas", 8), bg=p["log_bg"], fg=p["log_fg"], relief="flat", bd=0, padx=8, pady=6, wrap="word")
+        self.txt_log.pack(fill="x")
+        self.txt_log.configure(state="disabled")
+
     def _show_log(self, text: str):
         was_packed = bool(self.log_frame.winfo_manager())
         if not was_packed:
-            self.log_frame.pack(fill="x", pady=(0, 8), before=self.winfo_children()[0].winfo_children()[-1])
+            self.log_frame.pack(side="bottom", fill="x", pady=(0, 8))
         self.txt_log.configure(state="normal")
         self.txt_log.delete("1.0", "end")
         self.txt_log.insert("1.0", text or "")
         self.txt_log.configure(state="disabled")
         if not was_packed:
-            self.update_idletasks()
-            w = max(790, self.winfo_reqwidth())
-            h = self.winfo_reqheight()
-            self.geometry(f"{w}x{h}")
+            self._fit_height(center=False)
 
     def refresh_git_info(self, info=None):
         data = info or github_sync.get_git_info(APP_VERSION)
@@ -3654,6 +3664,7 @@ class GitHubSyncDialog(tk.Toplevel):
             self.cmb_rollback.current(1 if len(opts) > 1 else 0)
         else:
             self.var_rollback.set("Keine Commit-Historie verfügbar")
+        self._fit_height(center=False)
 
     def _open_exe_download(self):
         url = (self.git_info.get("raw_exe_url") or "").strip()
