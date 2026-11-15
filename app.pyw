@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.50"
+APP_VERSION = "v1.0.51"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -7899,25 +7899,70 @@ class App(tk.Tk):
         return "break"
 
     def sort_column(self, col, reverse):
-        """Sortiert alle Vorschau-Zeilen (inkl. gefilterter Ansichten) nach der angeklickten Spalte."""
+        """Sortiert Vorschau-Zeilen nach der Spalte; Original und seine Duplikate bleiben (ausser bei Status-Sortierung) als Block zusammen."""
         def get_sort_key(val):
             return str(val).lstrip("⛔📋🗑📄📁☁️ ").strip().lower()
 
+        def row_sort_value(rid):
+            if col == "size":
+                sz = self.preview_items.get(rid, {}).get("size_bytes", -1)
+                return (sz < 0, sz)
+            return get_sort_key(self.tree.set(rid, col))
+
         row_ids = list(self._preview_row_order) if getattr(self, "_preview_row_order", None) else list(self.tree.get_children(''))
-        if col == "size":
-            items = [
-                (self.preview_items.get(k, {}).get("size_bytes", -1), k)
-                for k in row_ids
-            ]
-            items.sort(key=lambda t: (t[0] < 0, t[0]), reverse=reverse)
-        else:
-            items = [(self.tree.set(k, col), k) for k in row_ids]
+
+        if col == "dup_status":
+            items = [(row_sort_value(k), k) for k in row_ids]
             try:
-                items.sort(key=lambda t: get_sort_key(t[0]), reverse=reverse)
+                items.sort(key=lambda t: t[0], reverse=reverse)
             except Exception:
                 items.sort(reverse=reverse)
+            sorted_rids = [k for _, k in items]
+        else:
+            row_set = set(row_ids)
+            orig_obj_to_rid = {}
+            for k in row_ids:
+                it = self.preview_items.get(k)
+                if it and not it.get("is_duplicate"):
+                    orig_obj_to_rid[id(it)] = k
 
-        sorted_rids = [k for _, k in items]
+            anchor_map = {}
+            anchors = []
+            for k in row_ids:
+                it = self.preview_items.get(k) or {}
+                orig_obj = it.get("original_item")
+                anchor = orig_obj_to_rid.get(id(orig_obj)) if (it.get("is_duplicate") and orig_obj is not None) else None
+                if not anchor or anchor not in row_set:
+                    anchor = k
+                anchor_map[k] = anchor
+                if anchor == k:
+                    anchors.append(k)
+
+            # Eventuelle verwaiste Duplikate ohne sichtbares Original ebenfalls als eigene Anker aufnehmen
+            seen_anchors = set(anchors)
+            for k in row_ids:
+                anc = anchor_map[k]
+                if anc not in seen_anchors:
+                    anchors.append(anc)
+                    seen_anchors.add(anc)
+
+            try:
+                anchors.sort(key=row_sort_value, reverse=reverse)
+            except Exception:
+                pass
+            group_rank = {anc: idx for idx, anc in enumerate(anchors)}
+
+            def grouped_key(rid):
+                it = self.preview_items.get(rid) or {}
+                anc = anchor_map[rid]
+                is_dup = 1 if (it.get("is_duplicate") and anc != rid) else 0
+                return (group_rank.get(anc, len(anchors)), is_dup, row_sort_value(rid))
+
+            try:
+                sorted_rids = sorted(row_ids, key=grouped_key)
+            except Exception:
+                sorted_rids = list(row_ids)
+
         if getattr(self, "_preview_row_order", None):
             self._preview_row_order = sorted_rids
 
