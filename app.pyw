@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.57"
+APP_VERSION = "v1.0.58"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -4958,35 +4958,113 @@ class CustomRulesDialog(tk.Toplevel):
         self.configure(bg="#f8fafc")
         self.transient(parent)
         self.grab_set()
+        self._main_app = getattr(parent, "_parent_app", parent)
 
-        dw, dh = 680, 460
+        dw, dh = 760, 560
         try:
             parent.update_idletasks()
             px = parent.winfo_rootx() + max(0, (parent.winfo_width() - dw) // 2)
             py = parent.winfo_rooty() + max(0, (parent.winfo_height() - dh) // 2)
         except Exception:
-            px, py = 140, 120
+            px, py = 140, 100
         self.geometry(f"{dw}x{dh}+{px}+{py}")
-        self.minsize(540, 360)
+        self.minsize(620, 440)
 
         outer = tk.Frame(self, bg="#f8fafc", padx=16, pady=14)
         outer.pack(fill="both", expand=True)
 
-        tk.Label(outer, text="Eigene Stichwort-Regeln (für künftige Scans)", font=("Segoe UI", 10, "bold"), bg="#f8fafc", fg="#0f172a").pack(anchor="w")
-        tk.Label(outer, text="Dateien, deren Name oder Text ein gespeichertes Stichwort enthält, werden automatisch dem Zielordner zugeordnet.", font=("Segoe UI", 9), bg="#f8fafc", fg="#64748b").pack(anchor="w", pady=(2, 10))
+        tk.Label(outer, text="Eigene Stichwort-Regeln (für künftige & aktuelle Scans)", font=("Segoe UI", 10, "bold"), bg="#f8fafc", fg="#0f172a").pack(anchor="w")
+        tk.Label(outer, text="Dateien, deren Name oder Pfad ein Stichwort enthält, werden automatisch dem gewählten Zielordner zugeordnet (vor Standard-Regeln).", font=("Segoe UI", 9), bg="#f8fafc", fg="#64748b").pack(anchor="w", pady=(2, 10))
+
+        # Karte: Neue Regel anlegen / ausgewaehlte bearbeiten
+        edit_card = tk.Frame(outer, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1", padx=12, pady=10)
+        edit_card.pack(fill="x", pady=(0, 10))
+
+        tk.Label(edit_card, text="Regel anlegen oder bearbeiten (Klick auf Tabellenzeile übernimmt Werte):", font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#0f172a").pack(anchor="w", pady=(0, 6))
+
+        target_opts = get_available_target_options()
+        self._target_label_map = {t.replace("/", " \\ "): l for t, l in target_opts}
+        self._target_raw_map = {t.replace("/", " \\ "): t for t, _l in target_opts}
+        combo_vals = [t.replace("/", " \\ ") for t, _l in target_opts]
+
+        self.kw_var = tk.StringVar()
+        self.tgt_var = tk.StringVar(value=combo_vals[0] if combo_vals else "01_Eingang_Inbox")
+        self.lbl_var = tk.StringVar(value=self._target_label_map.get(self.tgt_var.get(), ""))
+
+        row1 = tk.Frame(edit_card, bg="#ffffff")
+        row1.pack(fill="x", pady=(0, 6))
+        tk.Label(row1, text="Stichwort:", width=10, anchor="w", font=("Segoe UI", 9), bg="#ffffff", fg="#334155").pack(side="left")
+        self.ent_kw = tk.Entry(row1, textvariable=self.kw_var, width=22, font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
+        self.ent_kw.pack(side="left", padx=(0, 12), ipady=3)
+
+        tk.Label(row1, text="Zielordner:", width=9, anchor="w", font=("Segoe UI", 9), bg="#ffffff", fg="#334155").pack(side="left")
+        self.cmb_tgt = ttk.Combobox(row1, textvariable=self.tgt_var, values=combo_vals, font=("Segoe UI", 9))
+        self.cmb_tgt.pack(side="left", fill="x", expand=True, padx=(0, 8), ipady=2)
+        self.cmb_tgt.bind("<<ComboboxSelected>>", self._on_target_combo_selected)
+
+        ModernRoundedButton(
+            row1,
+            text="Ordner…",
+            command=self._browse_rule_folder,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#cbd5e1",
+            font=("Segoe UI", 9),
+            r=8,
+            padx=10,
+            pady=4,
+            icon_kind="folder_adjacent",
+        ).pack(side="left")
+
+        row2 = tk.Frame(edit_card, bg="#ffffff")
+        row2.pack(fill="x")
+        tk.Label(row2, text="Kategorie:", width=10, anchor="w", font=("Segoe UI", 9), bg="#ffffff", fg="#334155").pack(side="left")
+        self.ent_lbl = tk.Entry(row2, textvariable=self.lbl_var, width=26, font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
+        self.ent_lbl.pack(side="left", fill="x", expand=True, padx=(0, 12), ipady=3)
+
+        ModernRoundedButton(
+            row2,
+            text="+ Regel speichern",
+            command=self._save_rule_from_form,
+            bg="#2563eb",
+            fg="#ffffff",
+            hover_bg="#1d4ed8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=14,
+            pady=5,
+        ).pack(side="right")
+
+        self.ent_kw.bind("<Return>", lambda _e: self._save_rule_from_form())
+        self.ent_lbl.bind("<Return>", lambda _e: self._save_rule_from_form())
 
         # Fusszeile ZUERST am unteren Rand packen, damit Buttons niemals abgeschnitten werden
         foot = tk.Frame(outer, bg="#f8fafc")
-        foot.pack(side="bottom", fill="x", pady=(12, 2))
+        foot.pack(side="bottom", fill="x", pady=(10, 2))
 
         ModernRoundedButton(
             foot,
-            text="🗑 Ausgewählte Regel löschen",
+            text="🗑 Ausgewählte löschen",
             command=self._delete_selected,
             bg="#ffffff",
             fg="#dc2626",
             hover_bg="#fee2e2",
             border_color="#fca5a5",
+            font=("Segoe UI", 9),
+            r=8,
+            padx=12,
+            pady=6,
+        ).pack(side="left", padx=(0, 8))
+
+        ModernRoundedButton(
+            foot,
+            text="▶ Auf aktuelle Tabelle anwenden",
+            command=self._apply_rules_to_current_table,
+            bg="#ffffff",
+            fg="#1d4ed8",
+            hover_bg="#eff6ff",
+            border_color="#93c5fd",
             font=("Segoe UI", 9),
             r=8,
             padx=12,
@@ -5006,6 +5084,9 @@ class CustomRulesDialog(tk.Toplevel):
             pady=6,
         ).pack(side="right")
 
+        self.lbl_status = tk.Label(outer, text="", font=("Segoe UI", 9), bg="#f8fafc", fg="#1d4ed8", anchor="w")
+        self.lbl_status.pack(side="bottom", fill="x", pady=(6, 0))
+
         card = tk.Frame(outer, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1")
         card.pack(fill="both", expand=True)
 
@@ -5024,13 +5105,14 @@ class CustomRulesDialog(tk.Toplevel):
         self.tree.heading("keyword", text="Stichwort")
         self.tree.heading("target", text="Zielordner")
         self.tree.heading("label", text="Kategorie")
-        self.tree.column("keyword", width=150, anchor="w")
-        self.tree.column("target", width=290, anchor="w")
-        self.tree.column("label", width=170, anchor="w")
+        self.tree.column("keyword", width=160, anchor="w")
+        self.tree.column("target", width=330, anchor="w")
+        self.tree.column("label", width=190, anchor="w")
         vs = ttk.Scrollbar(card, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vs.set)
         self.tree.pack(side="left", fill="both", expand=True)
         vs.pack(side="right", fill="y")
+        self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
 
         self._reload()
 
@@ -5039,7 +5121,79 @@ class CustomRulesDialog(tk.Toplevel):
         self.update_idletasks()
         self.deiconify()
         self.lift()
-        self.focus_set()
+        self.ent_kw.focus_set()
+
+    def _set_status(self, msg: str, color: str = "#1d4ed8"):
+        try:
+            self.lbl_status.configure(text=msg, fg=color)
+        except Exception:
+            pass
+
+    def _on_target_combo_selected(self, _ev=None):
+        disp = self.tgt_var.get().strip()
+        if disp in self._target_label_map:
+            self.lbl_var.set(self._target_label_map[disp])
+
+    def _browse_rule_folder(self):
+        chosen = filedialog.askdirectory(parent=self, title="Zielordner für Regel wählen")
+        if chosen:
+            norm = os.path.normpath(chosen)
+            self.tgt_var.set(norm)
+            if not self.lbl_var.get().strip():
+                self.lbl_var.set(os.path.basename(norm) or norm)
+
+    def _on_tree_select(self, _ev=None):
+        sel = self.tree.selection()
+        if not sel:
+            return
+        vals = self.tree.item(sel[0], "values")
+        if vals and len(vals) >= 3:
+            self.kw_var.set(str(vals[0]))
+            self.tgt_var.set(str(vals[1]))
+            self.lbl_var.set(str(vals[2]))
+
+    def _save_rule_from_form(self):
+        kw = self.kw_var.get().strip().lower()
+        raw_tgt = self.tgt_var.get().strip()
+        if len(kw) < 2:
+            self._set_status("Bitte ein Stichwort mit mindestens 2 Zeichen eingeben (z. B. ffmpeg, haus, ricardo).", "#dc2626")
+            self.ent_kw.focus_set()
+            return
+        if not raw_tgt:
+            self._set_status("Bitte einen Zielordner auswählen oder eingeben.", "#dc2626")
+            return
+        target = self._target_raw_map.get(raw_tgt) or (os.path.normpath(raw_tgt) if os.path.isabs(raw_tgt) else raw_tgt.replace(" \\ ", "/").replace("\\", "/"))
+        lbl = self.lbl_var.get().strip() or (os.path.basename(target.rstrip("/\\")) or target)
+        save_custom_rule(kw, target, lbl)
+        self._reload()
+        self._set_status(f"Regel „{kw}“ → {target.replace('/', ' \\ ')} gespeichert.", "#15803d")
+        self.kw_var.set("")
+        self.ent_kw.focus_set()
+
+    def _apply_rules_to_current_table(self):
+        app = self._main_app
+        if not app or not getattr(app, "preview_items", None):
+            self._set_status("Aktuell sind keine gescannten Dateien in Schritt 2 geladen.", "#64748b")
+            return
+        rules = load_custom_rules()
+        if not rules:
+            self._set_status("Es sind noch keine Regeln gespeichert – bitte oben mindestens eine Regel speichern.", "#dc2626")
+            return
+        total_updated = 0
+        for rule in reversed(rules):
+            matching_rids = []
+            for rid, item in list(app.preview_items.items()):
+                if item.get("action") == "Gelöscht" or item.get("is_duplicate"):
+                    continue
+                hay = f"{item.get('name', '')} {item.get('source_path', '')}".lower()
+                if _rule_matches_text(rule["keyword"], hay):
+                    matching_rids.append(rid)
+            if matching_rids:
+                total_updated += app._apply_target_assignment(matching_rids, rule["target"], rule["label"], save_rule=False)
+        if total_updated > 0:
+            self._set_status(f"{total_updated} Einträge in der Tabelle anhand der Regeln neu zugeordnet.", "#15803d")
+        else:
+            self._set_status("Keine offenen Einträge in der aktuellen Tabelle passen auf die gespeicherten Regeln.", "#64748b")
 
     def _reload(self):
         for rid in self.tree.get_children(""):
@@ -5051,12 +5205,14 @@ class CustomRulesDialog(tk.Toplevel):
     def _delete_selected(self):
         sel = self.tree.selection()
         if not sel:
+            self._set_status("Bitte zuerst eine Regel in der Liste auswählen.", "#64748b")
             return
         for rid in sel:
             vals = self.tree.item(rid, "values")
             if vals:
                 delete_custom_rule(vals[0])
         self._reload()
+        self._set_status(f"{len(sel)} Regel(n) gelöscht.", "#1d4ed8")
 
     def _on_close(self):
         try:
