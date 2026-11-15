@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.59"
+APP_VERSION = "v1.0.60"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -6664,8 +6664,16 @@ class App(tk.Tk):
         self._preview_row_order = []  # geordnete tree_ids fuer verlustfreie Filter/Sortierung
         self.step2_search_var = tk.StringVar(value="")
         self.step2_filter_chip = "all"
+        self.step2_file_filter_mode = "all"  # "all", "no_images", "only_images"
+        self.step2_date_from_var = tk.StringVar(value="")
+        self.step2_date_to_var = tk.StringVar(value="")
+        self.step2_min_size_var = tk.StringVar(value="")
+        self._suppress_step2_filter_trace = False
         self._step2_filter_after_id = None
         self.step2_search_var.trace_add("write", lambda *_a: self._schedule_step2_filter())
+        self.step2_date_from_var.trace_add("write", lambda *_a: self._on_step2_detail_var_change())
+        self.step2_date_to_var.trace_add("write", lambda *_a: self._on_step2_detail_var_change())
+        self.step2_min_size_var.trace_add("write", lambda *_a: self._on_step2_detail_var_change())
         self.dup_bulk_mode = "skip"  # "skip", "copy", "delete"
         self.dup_original_strategy = "clean_name"  # "clean_name", "newest", "oldest", "shortest_path"
         self._last_explorer_target = ""
@@ -7675,7 +7683,7 @@ class App(tk.Tk):
         # Trennlinie
         tk.Frame(tb_card, bg="#f1f5f9", height=1).pack(fill="x", pady=(2, 6))
 
-        # Zeile 2: Live-Suchfeld & Schnellfilter-Chips (ohne neuen Scan)
+        # Zeile 2: Live-Suchfeld, Schnellfilter-Chips & nachtraegliche Datei-/Datums-/Groessenfilter (ohne neuen Scan)
         filter_row = tk.Frame(tb_card, bg="#ffffff")
         filter_row.pack(fill="x", pady=(0, 6))
 
@@ -7684,12 +7692,12 @@ class App(tk.Tk):
         self.box_step2_search = create_filter_box(
             filter_row,
             textvariable=self.step2_search_var,
-            width=230,
-            height=29,
+            width=220,
+            height=27,
             placeholder="Live suchen (Name, Datei, Pfad, Typ)…",
             on_commit=self.apply_step2_filters,
         )
-        self.box_step2_search.pack(side="left", padx=(0, 8))
+        self.box_step2_search.pack(side="left", padx=(0, 6))
         self.ent_step2_search = self.box_step2_search.entry
         self.ent_step2_search.bind("<Escape>", lambda _e: (self.clear_step2_filters(), "break")[1])
         attach_tooltip(self.box_step2_search, "Ergebnisse sofort durchsuchen (Strg+F)")
@@ -7714,7 +7722,7 @@ class App(tk.Tk):
                 border_color=None if is_def else "#cbd5e1",
                 font=("Segoe UI", 9, "bold") if is_def else ("Segoe UI", 9),
                 r=8,
-                padx=10,
+                padx=9,
                 pady=4,
             )
             c_btn.pack(side="left", padx=(0, 4))
@@ -7730,11 +7738,123 @@ class App(tk.Tk):
             border_color="#cbd5e1",
             font=("Segoe UI", 9),
             r=8,
-            padx=9,
+            padx=8,
             pady=4,
         )
-        self.btn_step2_filter_reset.pack(side="left", padx=(4, 0))
-        attach_tooltip(self.btn_step2_filter_reset, "Suchfeld und Schnellfilter zurücksetzen")
+        self.btn_step2_filter_reset.pack(side="left", padx=(2, 8))
+        attach_tooltip(self.btn_step2_filter_reset, "Suchfeld und alle Schritt-2-Filter zurücksetzen")
+
+        # Trenner zu den nachtraeglichen Datei-, Datums- & Groessenfiltern (kompakt auf derselben Linie)
+        tk.Frame(filter_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 8))
+
+        self._step2_file_filter_specs = [
+            ("all", "Alle", "all_files"),
+            ("no_images", "Ohne Bilder", "doc_only"),
+            ("only_images", "Nur Bilder", "images_only"),
+        ]
+        self.step2_file_filter_buttons = {}
+        for idx, (f_mode, f_lbl, f_icon) in enumerate(self._step2_file_filter_specs):
+            is_def = (f_mode == "all")
+            f_btn = ModernRoundedButton(
+                filter_row,
+                text=f_lbl,
+                command=lambda m=f_mode: self.set_step2_file_filter_mode(m),
+                bg="#2563eb" if is_def else "#ffffff",
+                fg="#ffffff" if is_def else "#475569",
+                hover_bg="#1d4ed8" if is_def else "#f1f5f9",
+                border_color=None if is_def else "#cbd5e1",
+                font=("Segoe UI", 9, "bold") if is_def else ("Segoe UI", 9),
+                r=8,
+                padx=9,
+                pady=4,
+                icon_kind=f_icon,
+            )
+            f_btn.pack(side="left", padx=(0, 4 if idx < len(self._step2_file_filter_specs) - 1 else 8))
+            self.step2_file_filter_buttons[f_mode] = f_btn
+
+        tk.Frame(filter_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 8))
+
+        self.btn_step2_date_preset = ModernRoundedButton(
+            filter_row,
+            text="Zeitraum ▾",
+            command=self.open_step2_date_preset_menu,
+            bg="#ffffff",
+            fg="#475569",
+            hover_bg="#f1f5f9",
+            border_color="#cbd5e1",
+            font=("Segoe UI", 9),
+            r=8,
+            padx=8,
+            pady=4,
+        )
+        self.btn_step2_date_preset.pack(side="left", padx=(0, 4))
+
+        self.box_step2_date_from = create_filter_box(
+            filter_row,
+            textvariable=self.step2_date_from_var,
+            width=128,
+            height=27,
+            placeholder="TT.MM.JJJJ",
+            prefix="Von",
+            on_calendar=lambda w: self.open_step2_date_picker(w, self.step2_date_from_var),
+            on_commit=self.apply_step2_filters,
+        )
+        self.box_step2_date_from.pack(side="left", padx=(0, 4))
+        self.ent_step2_date_from = self.box_step2_date_from.entry
+        if self.box_step2_date_from.calendar_button is not None:
+            attach_tooltip(self.box_step2_date_from.calendar_button, "Datumsauswahl anzeigen")
+
+        self.box_step2_date_to = create_filter_box(
+            filter_row,
+            textvariable=self.step2_date_to_var,
+            width=128,
+            height=27,
+            placeholder="TT.MM.JJJJ",
+            prefix="Bis",
+            on_calendar=lambda w: self.open_step2_date_picker(w, self.step2_date_to_var),
+            on_commit=self.apply_step2_filters,
+        )
+        self.box_step2_date_to.pack(side="left", padx=(0, 8))
+        self.ent_step2_date_to = self.box_step2_date_to.entry
+        if self.box_step2_date_to.calendar_button is not None:
+            attach_tooltip(self.box_step2_date_to.calendar_button, "Datumsauswahl anzeigen")
+
+        tk.Frame(filter_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 8))
+
+        self.box_step2_min_size = create_filter_box(
+            filter_row,
+            textvariable=self.step2_min_size_var,
+            width=98,
+            height=27,
+            placeholder="500 KB",
+            prefix="Ab",
+            on_commit=self.apply_step2_filters,
+        )
+        self.box_step2_min_size.pack(side="left", padx=(0, 4))
+        self.ent_step2_min_size = self.box_step2_min_size.entry
+
+        self.step2_size_preset_buttons = {}
+        step2_size_specs = [
+            ("100 KB", "> 100 KB"),
+            ("500 KB", "> 500 KB"),
+            ("1 MB", "> 1 MB"),
+        ]
+        for idx, (s_val, s_lbl) in enumerate(step2_size_specs):
+            s_btn = ModernRoundedButton(
+                filter_row,
+                text=s_lbl,
+                command=lambda v=s_val: self.set_step2_size_preset(v),
+                bg="#ffffff",
+                fg="#475569",
+                hover_bg="#f1f5f9",
+                border_color="#cbd5e1",
+                font=("Segoe UI", 9),
+                r=8,
+                padx=7,
+                pady=4,
+            )
+            s_btn.pack(side="left", padx=(0, 4 if idx < len(step2_size_specs) - 1 else 0))
+            self.step2_size_preset_buttons[s_val] = s_btn
 
         # Trennlinie
         sep_tb = tk.Frame(tb_card, bg="#f1f5f9", height=1)
@@ -8290,6 +8410,8 @@ class App(tk.Tk):
         return None
 
     def _schedule_step2_filter(self):
+        if getattr(self, "_suppress_step2_filter_trace", False):
+            return
         if self._step2_filter_after_id is not None:
             try:
                 self.after_cancel(self._step2_filter_after_id)
@@ -8299,9 +8421,180 @@ class App(tk.Tk):
         if self.preview_items:
             self._step2_filter_after_id = self.after(40, self.apply_step2_filters)
 
+    def _on_step2_detail_var_change(self):
+        if getattr(self, "_suppress_step2_filter_trace", False):
+            return
+        self.update_step2_detail_filter_ui()
+        self._schedule_step2_filter()
+
     def set_step2_filter_chip(self, chip_key: str):
         self.step2_filter_chip = chip_key if chip_key in {"all", "dups", "inbox", "cloud", "deleted"} else "all"
         self.apply_step2_filters()
+
+    def set_step2_file_filter_mode(self, mode: str):
+        self.step2_file_filter_mode = mode if mode in {"all", "no_images", "only_images"} else "all"
+        self.update_step2_detail_filter_ui()
+        self.apply_step2_filters()
+
+    def set_step2_date_preset(self, preset_key: str):
+        if preset_key == "clear":
+            self._suppress_step2_filter_trace = True
+            try:
+                self.step2_date_from_var.set("")
+                self.step2_date_to_var.set("")
+            finally:
+                self._suppress_step2_filter_trace = False
+            self.update_step2_detail_filter_ui()
+            self.apply_step2_filters()
+            return
+        d_start, d_end = self._compute_date_preset_range(preset_key)
+        if d_start is None or d_end is None:
+            return
+        s_from = d_start.strftime("%d.%m.%Y")
+        s_to = d_end.strftime("%d.%m.%Y")
+        self._suppress_step2_filter_trace = True
+        try:
+            if self.step2_date_from_var.get().strip() == s_from and self.step2_date_to_var.get().strip() == s_to:
+                self.step2_date_from_var.set("")
+                self.step2_date_to_var.set("")
+            else:
+                self.step2_date_from_var.set(s_from)
+                self.step2_date_to_var.set(s_to)
+        finally:
+            self._suppress_step2_filter_trace = False
+        self.update_step2_detail_filter_ui()
+        self.apply_step2_filters()
+
+    def open_step2_date_preset_menu(self):
+        """Öffnet ein helles Fluent-Menü zur Schnellauswahl des Zeitraums in Schritt 2."""
+        preset_specs = [
+            ("today", "Heute"),
+            ("week", "Diese Woche"),
+            ("month", "Dieser Monat"),
+            ("year", "Dieses Jahr"),
+        ]
+        try:
+            parsed_from = self._parse_filter_date(self.step2_date_from_var.get(), is_end=False)
+        except ValueError:
+            parsed_from = None
+        try:
+            parsed_to = self._parse_filter_date(self.step2_date_to_var.get(), is_end=True)
+        except ValueError:
+            parsed_to = None
+
+        menu_items = []
+        for p_key, p_lbl in preset_specs:
+            d1, d2 = self._compute_date_preset_range(p_key)
+            active = (
+                parsed_from is not None
+                and parsed_to is not None
+                and parsed_from.date() == d1
+                and parsed_to.date() == d2
+            )
+            menu_items.append({
+                "icon": "✓" if active else "",
+                "label": p_lbl,
+                "accent": active,
+                "command": lambda k=p_key: self.set_step2_date_preset(k),
+            })
+        if self.step2_date_from_var.get().strip() or self.step2_date_to_var.get().strip():
+            menu_items.append({"separator": True})
+            menu_items.append({
+                "icon": "✕",
+                "label": "Datum leeren",
+                "command": lambda: self.set_step2_date_preset("clear"),
+            })
+        btn = getattr(self, "btn_step2_date_preset", None)
+        if btn is not None and btn.winfo_exists():
+            x = btn.winfo_rootx()
+            y = btn.winfo_rooty() + btn.winfo_height() + 2
+        else:
+            x = self.winfo_rootx() + 200
+            y = self.winfo_rooty() + 140
+        FluentPopupMenu(self, menu_items, x, y)
+
+    def open_step2_date_picker(self, anchor_widget, target_var: tk.StringVar):
+        if getattr(self, "_calendar_popup", None) is not None:
+            try:
+                self._calendar_popup.close()
+            except Exception:
+                pass
+            self._calendar_popup = None
+
+        def _after_pick(_day):
+            self.update_step2_detail_filter_ui()
+            self.apply_step2_filters()
+
+        self._calendar_popup = CalendarPopup(anchor_widget, target_var, on_select=_after_pick)
+        return self._calendar_popup
+
+    def set_step2_size_preset(self, size_label: str):
+        self._suppress_step2_filter_trace = True
+        try:
+            if self.step2_min_size_var.get().strip().upper() == size_label.upper():
+                self.step2_min_size_var.set("")
+            else:
+                self.step2_min_size_var.set(size_label)
+        finally:
+            self._suppress_step2_filter_trace = False
+        self.update_step2_detail_filter_ui()
+        self.apply_step2_filters()
+
+    def update_step2_detail_filter_ui(self):
+        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
+
+        if hasattr(self, "step2_file_filter_buttons"):
+            cur_mode = getattr(self, "step2_file_filter_mode", "all")
+            for m_key, btn in self.step2_file_filter_buttons.items():
+                btn.update_style(**(active_kw if m_key == cur_mode else neutral_kw))
+
+        if hasattr(self, "btn_step2_date_preset"):
+            preset_labels = [
+                ("today", "Heute"),
+                ("week", "Diese Woche"),
+                ("month", "Dieser Monat"),
+                ("year", "Dieses Jahr"),
+            ]
+            try:
+                p_from = self._parse_filter_date(self.step2_date_from_var.get(), is_end=False)
+            except ValueError:
+                p_from = None
+            try:
+                p_to = self._parse_filter_date(self.step2_date_to_var.get(), is_end=True)
+            except ValueError:
+                p_to = None
+            matched_lbl = ""
+            if p_from is not None and p_to is not None:
+                for p_key, p_lbl in preset_labels:
+                    d1, d2 = self._compute_date_preset_range(p_key)
+                    if p_from.date() == d1 and p_to.date() == d2:
+                        matched_lbl = p_lbl
+                        break
+            if matched_lbl:
+                self.btn_step2_date_preset.update_style(text=f"{matched_lbl} ▾", **active_kw)
+            else:
+                self.btn_step2_date_preset.update_style(text="Zeitraum ▾", **neutral_kw)
+
+        if hasattr(self, "step2_size_preset_buttons"):
+            try:
+                cur_bytes = self._parse_min_file_size(self.step2_min_size_var.get())
+            except ValueError:
+                cur_bytes = None
+            for s_key, s_btn in self.step2_size_preset_buttons.items():
+                target_b = self._parse_min_file_size(s_key)
+                is_match = (cur_bytes is not None and target_b is not None and cur_bytes == target_b)
+                s_btn.update_style(**(active_kw if is_match else neutral_kw))
+
+    def _has_active_step2_filters(self) -> bool:
+        return bool(
+            getattr(self, "step2_filter_chip", "all") != "all"
+            or self.step2_search_var.get().strip()
+            or getattr(self, "step2_file_filter_mode", "all") != "all"
+            or self.step2_date_from_var.get().strip()
+            or self.step2_date_to_var.get().strip()
+            or self.step2_min_size_var.get().strip()
+        )
 
     def clear_step2_filters(self):
         if self._step2_filter_after_id is not None:
@@ -8311,15 +8604,64 @@ class App(tk.Tk):
                 pass
             self._step2_filter_after_id = None
         self.step2_filter_chip = "all"
-        if self.step2_search_var.get():
-            self.step2_search_var.set("")
-            if self._step2_filter_after_id is not None:
-                try:
-                    self.after_cancel(self._step2_filter_after_id)
-                except Exception:
-                    pass
-                self._step2_filter_after_id = None
+        self.step2_file_filter_mode = "all"
+        self._suppress_step2_filter_trace = True
+        try:
+            for var in (
+                self.step2_search_var,
+                self.step2_date_from_var,
+                self.step2_date_to_var,
+                self.step2_min_size_var,
+            ):
+                if var.get():
+                    var.set("")
+        finally:
+            self._suppress_step2_filter_trace = False
+        self.update_step2_detail_filter_ui()
         self.apply_step2_filters()
+
+    @staticmethod
+    def _matches_step2_detail_filters(item: dict, file_mode: str, dt_from, dt_to, min_bytes: int | None) -> bool:
+        is_dir = bool(item.get("is_dir"))
+        if file_mode in ("no_images", "only_images"):
+            ext_dot = ""
+            src_p = item.get("src_path")
+            if src_p is not None:
+                try:
+                    ext_dot = Path(src_p).suffix.lower()
+                except Exception:
+                    ext_dot = ""
+            if not ext_dot:
+                raw_ext = str(item.get("ext", "")).strip().lower()
+                ext_dot = f".{raw_ext}" if raw_ext and raw_ext not in ("ordner", "datei") else ""
+            is_img = (not is_dir) and (ext_dot in IMAGE_EXTENSIONS)
+            if file_mode == "no_images" and is_img:
+                return False
+            if file_mode == "only_images" and not is_img:
+                return False
+
+        if dt_from is not None or dt_to is not None:
+            mtime_ts = float(item.get("mtime_ts", 0.0) or 0.0)
+            if mtime_ts <= 0.0:
+                return False
+            try:
+                mtime = datetime.datetime.fromtimestamp(mtime_ts)
+            except Exception:
+                return False
+            if dt_from is not None and mtime < dt_from:
+                return False
+            if dt_to is not None and mtime > dt_to:
+                return False
+
+        if min_bytes is not None and not is_dir:
+            size_b = item.get("size_bytes", -1)
+            try:
+                if int(size_b) < min_bytes:
+                    return False
+            except Exception:
+                return False
+
+        return True
 
     @staticmethod
     def _matches_step2_chip(item: dict, chip_key: str) -> bool:
@@ -8375,6 +8717,20 @@ class App(tk.Tk):
         row_order = list(self._preview_row_order) if getattr(self, "_preview_row_order", None) else list(self.preview_items.keys())
         query_terms = [t for t in self.step2_search_var.get().strip().lower().split() if t]
         chip = getattr(self, "step2_filter_chip", "all")
+        file_mode = getattr(self, "step2_file_filter_mode", "all")
+
+        try:
+            dt_from = self._parse_filter_date(self.step2_date_from_var.get(), is_end=False)
+        except ValueError:
+            dt_from = None
+        try:
+            dt_to = self._parse_filter_date(self.step2_date_to_var.get(), is_end=True)
+        except ValueError:
+            dt_to = None
+        try:
+            min_bytes = self._parse_min_file_size(self.step2_min_size_var.get())
+        except ValueError:
+            min_bytes = None
 
         # Chip-Zaehler ueber alle Vorschau-Eintraege aktualisieren
         counts = {"all": 0, "dups": 0, "inbox": 0, "cloud": 0, "deleted": 0}
@@ -8392,7 +8748,11 @@ class App(tk.Tk):
                 counts["cloud"] += 1
             if self._matches_step2_chip(item, "deleted"):
                 counts["deleted"] += 1
-            if self._matches_step2_chip(item, chip) and self._matches_step2_query(item, query_terms):
+            if (
+                self._matches_step2_chip(item, chip)
+                and self._matches_step2_query(item, query_terms)
+                and self._matches_step2_detail_filters(item, file_mode, dt_from, dt_to, min_bytes)
+            ):
                 visible_rids.append(rid)
 
         if hasattr(self, "step2_chip_buttons"):
@@ -8404,7 +8764,7 @@ class App(tk.Tk):
                     style_kw = dict(active_kw if c_key == chip else neutral_kw)
                     btn.update_style(text=f"{c_lbl} ({counts.get(c_key, 0)})", **style_kw)
 
-        has_active_filter = (chip != "all" or bool(query_terms))
+        has_active_filter = self._has_active_step2_filters()
         if hasattr(self, "btn_step2_filter_reset"):
             if has_active_filter:
                 self.btn_step2_filter_reset.update_style(bg="#eff6ff", fg="#1d4ed8", hover_bg="#dbeafe", border_color="#93c5fd", font=("Segoe UI", 9, "bold"))
@@ -9076,7 +9436,7 @@ class App(tk.Tk):
         found_str = f"{doc_count} Dokumente, {dir_count} Ordner" if dir_count > 0 else f"{len(active_vals)} Dokumente"
         filter_tag = getattr(self, "_last_filter_tag", "")
         if is_filtered is None:
-            is_filtered = bool(getattr(self, "step2_filter_chip", "all") != "all" or self.step2_search_var.get().strip())
+            is_filtered = self._has_active_step2_filters()
         if visible_count is None:
             visible_count = len(self.tree.get_children(""))
         if total_count is None:
@@ -10674,8 +11034,20 @@ class App(tk.Tk):
         self._preview_row_order = []
         if not is_refresh:
             self.step2_filter_chip = "all"
-            if self.step2_search_var.get():
-                self.step2_search_var.set("")
+            self.step2_file_filter_mode = "all"
+            self._suppress_step2_filter_trace = True
+            try:
+                for var in (
+                    self.step2_search_var,
+                    self.step2_date_from_var,
+                    self.step2_date_to_var,
+                    self.step2_min_size_var,
+                ):
+                    if var.get():
+                        var.set("")
+            finally:
+                self._suppress_step2_filter_trace = False
+            self.update_step2_detail_filter_ui()
             if self._step2_filter_after_id is not None:
                 try:
                     self.after_cancel(self._step2_filter_after_id)
