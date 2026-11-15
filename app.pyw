@@ -433,8 +433,17 @@ def find_suchmaschine_app() -> dict:
         BASE_DIR,
         BASE_DIR.parent / "Datei-Suchmaschine",
         BASE_DIR.parent,
-        Path.home() / ".gemini" / "antigravity" / "scratch" / "Datei-Suchmaschine",
     ])
+    for root_scan in (BASE_DIR, BASE_DIR.parent):
+        try:
+            for sub in list(root_scan.iterdir())[:80]:
+                if sub.is_dir() and not sub.name.startswith((".", "$")):
+                    candidate_dirs.append(sub)
+        except Exception:
+            pass
+    candidate_dirs.append(
+        Path.home() / ".gemini" / "antigravity" / "scratch" / "Datei-Suchmaschine"
+    )
     if getattr(sys, "frozen", False):
         try:
             candidate_dirs.append(Path(sys.executable).resolve().parent / "Datei-Suchmaschine")
