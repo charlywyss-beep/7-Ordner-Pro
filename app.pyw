@@ -430,7 +430,9 @@ def find_suchmaschine_app() -> dict:
     if sm.get("dir"):
         candidate_dirs.append(Path(sm["dir"]))
     candidate_dirs.extend([
+        BASE_DIR,
         BASE_DIR.parent / "Datei-Suchmaschine",
+        BASE_DIR.parent,
         Path.home() / ".gemini" / "antigravity" / "scratch" / "Datei-Suchmaschine",
     ])
     if getattr(sys, "frozen", False):
