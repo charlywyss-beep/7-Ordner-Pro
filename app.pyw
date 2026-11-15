@@ -622,10 +622,27 @@ def open_path_in_suchmaschine(target_path: str | Path | None = None, auto_start:
     url = f"http://localhost:{port}/"
     if norm_path:
         url = f"http://localhost:{port}/?open_path={urllib.parse.quote(norm_path)}"
-    try:
-        webbrowser.open(url)
-    except Exception:
-        pass
+
+    reused_existing = False
+    if server_running and not started_server:
+        try:
+            req = urllib.request.Request(
+                f"http://127.0.0.1:{port}/api/bridge/open-in-active",
+                data=json.dumps({"path": norm_path}).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with urllib.request.urlopen(req, timeout=1.2) as resp:
+                body = json.loads(resp.read().decode("utf-8") or "{}")
+                reused_existing = bool(body.get("reused_existing"))
+        except Exception:
+            reused_existing = False
+
+    if not reused_existing:
+        try:
+            webbrowser.open(url)
+        except Exception:
+            pass
 
     return {
         "success": True,
@@ -633,6 +650,7 @@ def open_path_in_suchmaschine(target_path: str | Path | None = None, auto_start:
         "path": norm_path,
         "started_server": started_server,
         "server_running": server_running,
+        "reused_existing": reused_existing,
     }
 
 
