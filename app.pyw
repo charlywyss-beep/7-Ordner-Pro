@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.98"
+APP_VERSION = "v1.0.99"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -3225,12 +3225,7 @@ class ModernNoticeDialog(tk.Toplevel):
 
             if extra_button_text and callable(extra_button_command):
                 def _on_extra_action():
-                    self._stop_auto_close()
-                    try:
-                        self.grab_release()
-                    except Exception:
-                        pass
-                    self.destroy()
+                    self._close()
                     def _run_extra():
                         try:
                             extra_button_command()
