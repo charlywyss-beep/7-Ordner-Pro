@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.65"
+APP_VERSION = "v1.0.93"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -257,6 +257,7 @@ _DARK_BG_REMAP = {
     "#cbd5e1": "#334155",
     "#eff6ff": "#172554",
     "#dbeafe": "#1e3a8a",
+    "#bfdbfe": "#1d4ed8",
     "#e0f2fe": "#0c4a6e",
     "#bae6fd": "#075985",
     "#f0f9ff": "#082f49",
@@ -301,6 +302,7 @@ _DARK_BORDER_REMAP = {
     "#cbd5e1": "#334155",
     "#94a3b8": "#475569",
     "#93c5fd": "#2563eb",
+    "#60a5fa": "#3b82f6",
     "#7dd3fc": "#0284c7",
     "#99f6e4": "#115e59",
     "#fca5a5": "#991b1b",
@@ -754,14 +756,26 @@ IMAGE_EXTENSIONS = {
     ".tif", ".tiff", ".webp", ".heic", ".heif", ".avif", ".svg", ".ico",
     ".raw", ".cr2", ".nef", ".arw", ".dng"
 }
-INSTALLER_EXTENSIONS = {".exe", ".msi", ".msix", ".appx", ".appxbundle"}
+INSTALLER_EXTENSIONS = {".exe", ".msi", ".msix", ".appx", ".appxbundle", ".iso"}
 MEDIA_EXTENSIONS = {
     ".ts", ".mts", ".m2ts", ".mpeg", ".mpg", ".mpe", ".mp4", ".m4v",
     ".mkv", ".avi", ".mov", ".wmv", ".webm", ".flv", ".vob", ".3gp",
     ".mp3", ".wav", ".flac", ".aac", ".ogg", ".m4a", ".wma"
 }
+EBOOK_EXTENSIONS = {".epub", ".mobi", ".azw", ".azw3", ".fb2", ".lit", ".ibooks"}
+TEXT_DOC_EXTENSIONS = {
+    ".txt", ".pdf", ".doc", ".docx", ".rtf", ".md", ".log", ".scan",
+    ".epub", ".mobi", ".azw", ".azw3", ".fb2", ".vstx", ".zip", ".json", ".xml", ".html", ".htm", ".mht", ".mhtml"
+}
+OFFICE_EXTENSIONS = {
+    ".docx", ".doc", ".docm", ".dotx", ".dotm",
+    ".xlsx", ".xls", ".xlsm", ".xlsb", ".xltx", ".xltm",
+    ".pptx", ".ppt", ".pptm", ".ppsx", ".pps",
+    ".odt", ".ods", ".odp", ".csv"
+}
 PROTECTED_APP_FILES = {"7-ordner-pro.exe", "sort_history.json", "window_state.json", "custom_rules.json"}
-VALID_EXTENSIONS = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS
+ALL_EXTENSIONS = DOCUMENT_EXTENSIONS | IMAGE_EXTENSIONS | INSTALLER_EXTENSIONS | MEDIA_EXTENSIONS | EBOOK_EXTENSIONS | TEXT_DOC_EXTENSIONS | OFFICE_EXTENSIONS
+VALID_EXTENSIONS = ALL_EXTENSIONS
 
 IGNORED_DIRS = {
     "system volume information", "$recycle.bin", "windows", "program files",
@@ -1109,7 +1123,7 @@ RULES = [
     {
         "target": "05_Gesundheit_Familie/02_Aerzte_Befunde",
         "label": "Gesundheit & Ernährung",
-        "keywords": ["arzt", "befund", "rezept", "krankenhaus", "labor", "impfung", "zahnarzt", "patientenakte", "diagnose", "fasten", "glucose", "ernaehrung", "rezept", "muffin", "kalorien", "halbrahm"]
+        "keywords": ["arzt", "befund", "rezept", "krankenhaus", "labor", "impfung", "zahnarzt", "patientenakte", "diagnose", "fasten", "glucose", "ernaehrung", "muffin", "kalorien", "halbrahm"]
     },
     {
         "target": "05_Gesundheit_Familie/03_Familienurkunden",
@@ -1153,7 +1167,7 @@ RULES = [
     {
         "target": "07_Archiv_Historie/02_Buecher_Medien",
         "label": "Bücher & Medien",
-        "keywords": ["teufelsleib", "franz, andreas", "epub", "roman", "buch"]
+        "keywords": ["teufelsleib", "franz, andreas", "epub", "roman", "buch", "kochbuch", "backbuch", "ebook", "e-book"]
     },
     {
         "target": "07_Archiv_Historie/03_Abgeschlossenes",
@@ -1193,12 +1207,16 @@ def file_hash(path: Path) -> str:
         return ""
 
 def format_file_size(size_bytes: int) -> str:
+    if size_bytes < 0:
+        return "—"
     if size_bytes < 1024:
         return f"{size_bytes} B"
     elif size_bytes < 1024 * 1024:
         return f"{size_bytes / 1024:.1f} KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f} MB"
     else:
-        return f"{size_bytes / (1024 * 1024):.2f} MB"
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f} GB"
 
 
 _PDF_PREVIEW_CACHE: dict[tuple, tuple] = {}
@@ -1647,7 +1665,7 @@ def get_available_target_options() -> list[tuple[str, str]]:
             seen.add(tgt)
             options.append((tgt, rule["label"]))
     for tgt, lbl in [
-        ("07_Bilder", "Bilder & Fotos"),
+        ("07_Archiv_Historie/04_Bilder_Fotos", "Bilder & Fotos"),
         ("08_Programme_Installer", "Programme & Installer"),
         ("09_Videos_Medien", "Videos & Medien"),
         ("10_Ordner_Projekte", "Ordner & Projekte"),
@@ -1666,7 +1684,7 @@ def get_available_target_options() -> list[tuple[str, str]]:
 def find_target(filename: str, content: str = "", ext: str = ""):
     ext_lower = ext.lower() if ext else ""
     if ext_lower in IMAGE_EXTENSIONS:
-        return "07_Bilder", "Bilder & Fotos"
+        return "07_Archiv_Historie/04_Bilder_Fotos", "Bilder & Fotos"
     if ext_lower in INSTALLER_EXTENSIONS:
         return "08_Programme_Installer", "Programme & Installer"
     if ext_lower in MEDIA_EXTENSIONS:
@@ -1675,18 +1693,27 @@ def find_target(filename: str, content: str = "", ext: str = ""):
     for crule in load_custom_rules():
         if _rule_matches_text(crule["keyword"], text):
             return crule["target"], crule["label"]
+    # E-Books (.epub, .mobi, .azw3, ...) gehören immer in Bücher & Medien –
+    # Wörter im Buchtitel (z. B. "Rezepte", "Arzt", "Testament", "Miete") dürfen sie nie umleiten!
+    if ext_lower in EBOOK_EXTENSIONS:
+        return "07_Archiv_Historie/02_Buecher_Medien", "Bücher & Medien"
+    fname_low = str(filename or "").lower()
+    if any(k in fname_low for k in ("kochbuch", "backbuch")):
+        return "07_Archiv_Historie/02_Buecher_Medien", "Bücher & Medien"
     for rule in RULES:
         for kw in rule["keywords"]:
             if _rule_matches_text(kw, text):
                 return rule["target"], rule["label"]
     return "01_Eingang_Inbox", "Unbekannt -> Inbox"
 
-def find_folder_target(dir_path: Path) -> tuple[str, str, int]:
+def find_folder_target(dir_path: Path) -> tuple[str, str, int, int]:
     """Bestimmt den passenden Zielordner für einen ganzen Unterordner, ohne ihn zu zerpflücken."""
     inner_count = 0
+    inner_bytes = 0
     img_cnt = 0
     media_cnt = 0
     inst_cnt = 0
+    ebook_cnt = 0
     sample_names = []
 
     try:
@@ -1696,6 +1723,10 @@ def find_folder_target(dir_path: Path) -> tuple[str, str, int]:
                 if fname.startswith(".") or fname.startswith("~$"):
                     continue
                 inner_count += 1
+                try:
+                    inner_bytes += (Path(root) / fname).stat().st_size
+                except Exception:
+                    pass
                 if len(sample_names) < 40:
                     sample_names.append(fname)
                 f_ext = Path(fname).suffix.lower()
@@ -1705,31 +1736,31 @@ def find_folder_target(dir_path: Path) -> tuple[str, str, int]:
                     media_cnt += 1
                 elif f_ext in INSTALLER_EXTENSIONS:
                     inst_cnt += 1
+                elif f_ext in EBOOK_EXTENSIONS:
+                    ebook_cnt += 1
     except Exception:
         pass
 
     t_sub, t_lbl = find_target(dir_path.name, "", "")
-    if t_sub == "07_Archiv_Historie/04_Bilder_Fotos":
-        return "07_Bilder", "Bilder & Fotos", inner_count
     if t_sub != "01_Eingang_Inbox":
-        return t_sub, t_lbl, inner_count
+        return t_sub, t_lbl, inner_count, inner_bytes
 
     if inner_count > 0:
+        if ebook_cnt / inner_count >= 0.7:
+            return "07_Archiv_Historie/02_Buecher_Medien", "Bücher & Medien", inner_count, inner_bytes
         if img_cnt / inner_count >= 0.7:
-            return "07_Bilder", "Bilder & Fotos", inner_count
+            return "07_Archiv_Historie/04_Bilder_Fotos", "Bilder & Fotos", inner_count, inner_bytes
         if media_cnt / inner_count >= 0.7:
-            return "09_Videos_Medien", "Videos & Medien", inner_count
+            return "09_Videos_Medien", "Videos & Medien", inner_count, inner_bytes
         if inst_cnt / inner_count >= 0.7:
-            return "08_Programme_Installer", "Programme & Installer", inner_count
+            return "08_Programme_Installer", "Programme & Installer", inner_count, inner_bytes
 
     if sample_names:
         t_sub2, t_lbl2 = find_target(dir_path.name, " ".join(sample_names), "")
-        if t_sub2 == "07_Archiv_Historie/04_Bilder_Fotos":
-            return "07_Bilder", "Bilder & Fotos", inner_count
         if t_sub2 != "01_Eingang_Inbox":
-            return t_sub2, t_lbl2, inner_count
+            return t_sub2, t_lbl2, inner_count, inner_bytes
 
-    return "10_Ordner_Projekte", "Ordner & Projekte", inner_count
+    return "10_Ordner_Projekte", "Ordner & Projekte", inner_count, inner_bytes
 
 def score_for_original(path_stem: str) -> int:
     """Dateien mit sauberen Namen (ohne ' 2', ' (1)', '_kopie') erhalten Vorrang als Original."""
@@ -1891,6 +1922,16 @@ def _draw_vector_icon(d: ImageDraw.ImageDraw, kind: str, x0: int, y0: int, size:
         d.line([px(4.7, 7.3), px(11.3, 7.3)], fill=c_lines, width=max(2, round(1.3 * u)))
         d.line([px(4.7, 9.8), px(11.3, 9.8)], fill=c_lines, width=max(2, round(1.3 * u)))
         d.line([px(4.7, 12.3), px(9.1, 12.3)], fill=c_lines, width=max(2, round(1.3 * u)))
+
+    elif kind == "office_doc":
+        c_border = "#ffffff" if is_active else "#ea580c"
+        c_fill = "#1d4ed8" if is_active else "#fff7ed"
+        r = max(2, round(1.3 * u))
+        d.rounded_rectangle([px(2.0, 1.5), px(14.0, 14.5)], radius=r, fill=c_fill, outline=c_border, width=lw)
+        c_grid = "#ffffff" if is_active else "#c2410c"
+        d.line([px(2.0, 5.8), px(14.0, 5.8)], fill=c_grid, width=max(1, round(1.1 * u)))
+        d.line([px(2.0, 10.0), px(14.0, 10.0)], fill=c_grid, width=max(1, round(1.1 * u)))
+        d.line([px(7.5, 5.8), px(7.5, 14.5)], fill=c_grid, width=max(1, round(1.1 * u)))
 
     elif kind == "images_only":
         c_border = "#ffffff" if is_active else "#059669"
@@ -2086,8 +2127,8 @@ def get_rounded_photo(w, h, r, bg, border_color=None, icon_kind=None, icon_x=0, 
 
 class ModernRoundedButton(tk.Canvas):
     """Eleganter abgerundeter Button mit exakter Icon-Ausrichtung, einheitlicher Breite & Hover-Effekt."""
-    def __init__(self, parent, text, command=None, bg="#ffffff", fg="#334155",
-                 hover_bg=None, border_color="#cbd5e1", font=("Segoe UI", 9), r=8, padx=12, pady=6, icon_kind=None, min_width=0):
+    def __init__(self, parent, text, command=None, bg="#ffffff", fg="#1e293b",
+                 hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"), r=8, padx=12, pady=6, icon_kind=None, min_width=0, min_height=0):
         self.parent = parent
         self.cmd = command
         self.r = r
@@ -2098,6 +2139,7 @@ class ModernRoundedButton(tk.Canvas):
         self.cur_text = text
         self.icon_kind = icon_kind
         self.min_width = min_width
+        self.min_height = min_height
         self.cur_bg = bg
         self.cur_hover_bg = hover_bg
         self.cur_border_color = border_color
@@ -2112,6 +2154,7 @@ class ModernRoundedButton(tk.Canvas):
             self._cur_h // 2,
             text=self.cur_text,
             anchor=self._text_anchor,
+            justify="center" if not self.icon_kind else "left",
             font=self.font_spec,
             fill=self.fg_color,
         )
@@ -2120,8 +2163,10 @@ class ModernRoundedButton(tk.Canvas):
         self.bind("<Leave>", lambda e: self.itemconfig(self.bg_item, image=self.img_norm))
 
     def _compute_layout(self):
-        h = max(10, self.f_obj.metrics("linespace") + self.pady * 2 + 4)
-        clean_tw = self.f_obj.measure(self.cur_text)
+        lines = self.cur_text.splitlines() or [""]
+        clean_tw = max(self.f_obj.measure(ln) for ln in lines)
+        text_h = self.f_obj.metrics("linespace") * len(lines)
+        h = max(10, self.min_height, text_h + self.pady * 2 + 4)
         if not self.icon_kind:
             w = max(10, self.min_width, clean_tw + self.padx * 2)
             self._cur_w = w
@@ -3028,7 +3073,8 @@ class ModernNoticeDialog(tk.Toplevel):
     def __init__(self, parent, title: str, headline: str, subline: str = "",
                  kind: str = "info", confirm: bool = False,
                  confirm_text: str = "Bestätigen", cancel_text: str = "Abbrechen",
-                 ok_text: str = "OK", auto_close_ms: int | None = None):
+                 ok_text: str = "OK", auto_close_ms: int | None = None,
+                 extra_button_text: str = "", extra_button_command=None):
         super().__init__(parent)
         self.result = False
         self.kind = kind
@@ -3119,10 +3165,10 @@ class ModernNoticeDialog(tk.Toplevel):
                 text=cancel_text,
                 command=self._on_cancel,
                 bg="#ffffff",
-                fg="#475569",
+                fg="#1e293b",
                 hover_bg="#f1f5f9",
-                border_color="#cbd5e1",
-                font=("Segoe UI", 9),
+                border_color="#94a3b8",
+                font=("Segoe UI", 9, "bold"),
                 r=8,
                 padx=16,
                 pady=7,
@@ -3143,6 +3189,29 @@ class ModernNoticeDialog(tk.Toplevel):
             )
             self.btn_confirm.pack(side="right")
             self.btn_cancel = None
+
+            if extra_button_text and callable(extra_button_command):
+                def _on_extra_action():
+                    self._stop_auto_close()
+                    self.destroy()
+                    try:
+                        extra_button_command()
+                    except Exception as _e:
+                        print(f"Fehler in Dialog-Zusatzbutton: {_e}")
+
+                ModernRoundedButton(
+                    btn_bar,
+                    text=extra_button_text,
+                    command=_on_extra_action,
+                    bg="#ffffff",
+                    fg="#2563eb",
+                    hover_bg="#eff6ff",
+                    border_color="#93c5fd",
+                    font=("Segoe UI", 9),
+                    r=8,
+                    padx=14,
+                    pady=7,
+                ).pack(side="right", padx=(0, 10))
 
         self.lbl_auto_close = None
         if self.auto_close_ms > 0:
@@ -4017,10 +4086,10 @@ class SearchBusyOverlay(tk.Frame):
             text="Abbrechen",
             command=self._handle_cancel,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
             pady=4,
@@ -4062,8 +4131,496 @@ class SearchBusyOverlay(tk.Frame):
             self.progress_canvas.coords(self._bar_fill, x0, 0, x1, self.bar_h)
 
 
+def _copy_file_chunked(src: Path, dest: Path, cancel_ev: threading.Event | None = None,
+                        byte_cb=None, chunk_size: int = 512 * 1024) -> bool:
+    """Kopiert eine Datei in 512-KB-Blöcken mit stetigem Flush & Fsync für USB-Sticks. Bricht bei cancel_ev SOFORT ab."""
+    try:
+        fsize = src.stat().st_size
+    except Exception:
+        fsize = 0
+
+    dest_tmp = dest.with_name(dest.name + f".part_{os.getpid()}")
+    copied = 0
+    chunk_counter = 0
+    try:
+        with open(src, "rb") as fin, open(dest_tmp, "wb") as fout:
+            while True:
+                if cancel_ev and cancel_ev.is_set():
+                    try:
+                        dest_tmp.unlink(missing_ok=True)
+                    except Exception:
+                        pass
+                    return False
+                buf = fin.read(chunk_size)
+                if not buf:
+                    break
+                fout.write(buf)
+                n = len(buf)
+                copied += n
+                chunk_counter += 1
+                if chunk_counter % 8 == 0:  # Alle 4 MB leeren, damit langsamer USB-Puffer nicht überläuft
+                    fout.flush()
+                if byte_cb:
+                    try:
+                        byte_cb(n, copied, fsize)
+                    except Exception:
+                        pass
+
+            fout.flush()
+            try:
+                os.fsync(fout.fileno())
+            except Exception:
+                pass
+
+        if cancel_ev and cancel_ev.is_set():
+            try:
+                dest_tmp.unlink(missing_ok=True)
+            except Exception:
+                pass
+            return False
+
+        if dest.exists():
+            try:
+                if dest.is_dir():
+                    shutil.rmtree(str(dest), ignore_errors=True)
+                else:
+                    dest.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        # Auf USB-Sticks kurz warten und bis zu 5x erneut versuchen, falls Windows noch verzögert schreibt
+        renamed = False
+        for attempt in range(5):
+            try:
+                dest_tmp.rename(dest)
+                renamed = True
+                break
+            except OSError:
+                time.sleep(0.08 * (attempt + 1))
+        if not renamed:
+            shutil.move(str(dest_tmp), str(dest))
+
+        try:
+            shutil.copystat(str(src), str(dest))
+        except Exception:
+            pass
+        return True
+    except Exception as exc:
+        try:
+            dest_tmp.unlink(missing_ok=True)
+        except Exception:
+            pass
+        raise exc
+
+
+def _copy_directory_worker(src_dir: Path, dst_dir: Path, cancel_ev: threading.Event | None = None,
+                           file_start_cb=None, byte_cb=None) -> bool:
+    """Kopiert einen ganzen Ordner dateiweise im 1-MB-Takt mit sofortigem Abbruch & Byte-Fortschritt."""
+    dst_dir.mkdir(parents=True, exist_ok=True)
+    for root, dirs, files in os.walk(src_dir):
+        if cancel_ev and cancel_ev.is_set():
+            return False
+        dirs[:] = [d for d in dirs if d.lower() not in IGNORED_DIRS and not d.startswith(".")]
+        rel = Path(root).relative_to(src_dir)
+        cur_dst = dst_dir / rel
+        cur_dst.mkdir(parents=True, exist_ok=True)
+        for fname in files:
+            if cancel_ev and cancel_ev.is_set():
+                return False
+            if fname.startswith("~$"):
+                continue
+            s_file = Path(root) / fname
+            d_file = cur_dst / fname
+            if file_start_cb:
+                try:
+                    file_start_cb(fname, s_file.stat().st_size)
+                except Exception:
+                    pass
+            ok = _copy_file_chunked(s_file, d_file, cancel_ev=cancel_ev, byte_cb=byte_cb)
+            if not ok:
+                return False
+    try:
+        shutil.copystat(str(src_dir), str(dst_dir))
+    except Exception:
+        pass
+    return True
+
+
+def _move_directory_worker(src_dir: Path, dst_dir: Path, cancel_ev: threading.Event | None = None,
+                           file_start_cb=None, byte_cb=None) -> bool:
+    """Verschiebt einen Ordner. Auf demselben Laufwerk atomar, laufwerksübergreifend dateiweise mit Chunk-Fortschritt."""
+    try:
+        os.rename(str(src_dir), str(dst_dir))
+        return True
+    except OSError:
+        pass
+    ok = _copy_directory_worker(src_dir, dst_dir, cancel_ev=cancel_ev, file_start_cb=file_start_cb, byte_cb=byte_cb)
+    if ok and (cancel_ev is None or not cancel_ev.is_set()):
+        try:
+            shutil.rmtree(str(src_dir))
+            return True
+        except Exception:
+            return True
+    return False
+
+
+class TransferBusyOverlay(tk.Frame):
+    """Zentrierte Light-Fluent Transfer-Karte mit stetigem Live-Fortschritt, Geschwindigkeitsanzeige & sofortigem Abbruch."""
+
+    def __init__(self, parent, is_copy: bool = True, total_items: int = 1, on_cancel=None):
+        super().__init__(
+            parent,
+            bg="#ffffff",
+            highlightbackground="#cbd5e1",
+            highlightthickness=1,
+            padx=24,
+            pady=18,
+            cursor="wait",
+        )
+        self.is_copy = is_copy
+        self.total_items = max(1, total_items)
+        self._on_cancel = on_cancel
+        self._frame_idx = 0
+
+        action_word = "kopiert" if is_copy else "verschoben"
+        top_row = tk.Frame(self, bg="#ffffff", cursor="wait")
+        top_row.pack(fill="x")
+
+        ico = get_hourglass_icon_photo(0, bg="#ffffff", size=44)
+        self.lbl_icon = tk.Label(top_row, image=ico, bg="#ffffff", bd=0, cursor="wait")
+        self.lbl_icon.image = ico
+        self.lbl_icon.pack(side="left", padx=(0, 14))
+
+        txt_col = tk.Frame(top_row, bg="#ffffff", cursor="wait")
+        txt_col.pack(side="left", fill="both", expand=True)
+
+        self.lbl_title = tk.Label(
+            txt_col,
+            text=f"Elemente werden {action_word}…",
+            font=("Segoe UI", 11, "bold"),
+            bg="#ffffff",
+            fg="#0f172a",
+            anchor="w",
+        )
+        self.lbl_title.pack(fill="x", anchor="w")
+
+        self.lbl_detail = tk.Label(
+            txt_col,
+            text="Vorbereitung läuft…",
+            font=("Segoe UI", 9),
+            bg="#ffffff",
+            fg="#475569",
+            anchor="w",
+            width=74,
+        )
+        self.lbl_detail.pack(fill="x", anchor="w", pady=(2, 0))
+
+        self.lbl_subfile = tk.Label(
+            txt_col,
+            text="",
+            font=("Segoe UI", 8),
+            bg="#ffffff",
+            fg="#64748b",
+            anchor="w",
+            width=74,
+        )
+        self.lbl_subfile.pack(fill="x", anchor="w", pady=(1, 0))
+
+        self.bar_w = 560
+        self.bar_h = 8
+        self.progress_canvas = tk.Canvas(
+            self,
+            width=self.bar_w,
+            height=self.bar_h,
+            bg="#ffffff",
+            highlightthickness=0,
+            bd=0,
+            cursor="wait",
+        )
+        self.progress_canvas.pack(fill="x", pady=(14, 10))
+        self.progress_canvas.create_rectangle(0, 0, self.bar_w, self.bar_h, fill="#e2e8f0", outline="")
+        self._bar_fill = self.progress_canvas.create_rectangle(0, 0, 0, self.bar_h, fill="#2563eb", outline="")
+
+        foot = tk.Frame(self, bg="#ffffff")
+        foot.pack(fill="x")
+
+        self.lbl_pct = tk.Label(
+            foot,
+            text="0 % • Die Oberfläche bleibt aktiv",
+            font=("Segoe UI", 8),
+            bg="#ffffff",
+            fg="#64748b",
+            anchor="w",
+        )
+        self.lbl_pct.pack(side="left")
+
+        self.btn_cancel = ModernRoundedButton(
+            foot,
+            text="Abbrechen",
+            command=self._handle_cancel,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=14,
+            pady=4,
+        )
+        self.btn_cancel.pack(side="right", padx=(12, 0))
+
+    def _handle_cancel(self):
+        try:
+            self.lbl_title.config(text="Vorgang wird sofort abgebrochen…")
+            self.lbl_detail.config(text="Breche Kopiervorgang ab und räume unvollständige Dateien auf…")
+            self.btn_cancel.config(state="disabled")
+        except Exception:
+            pass
+        if callable(self._on_cancel):
+            self._on_cancel()
+
+    def update_progress(self, item_idx: int, total_items: int,
+                        current_item: str = "", current_subfile: str = "",
+                        copied_bytes: int = 0, total_bytes: int = 0,
+                        file_copied: int = 0, file_total: int = 0,
+                        speed_mb_s: float = 0.0):
+        self._frame_idx = (self._frame_idx + 1) % 8
+        ico = get_hourglass_icon_photo(self._frame_idx, bg="#ffffff", size=44)
+        self.lbl_icon.configure(image=ico)
+        self.lbl_icon.image = ico
+
+        total_items = max(1, total_items)
+        item_num = min(item_idx + 1, total_items)
+        action_verb = "Kopiere" if self.is_copy else "Verschiebe"
+
+        if current_item:
+            disp_item = (current_item[:48] + "…") if len(current_item) > 50 else current_item
+            self.lbl_detail.config(text=f"{action_verb} {item_num} von {total_items}: {disp_item}")
+        else:
+            self.lbl_detail.config(text=f"{action_verb} {item_num} von {total_items} Elementen…")
+
+        if current_subfile:
+            disp_sub = (current_subfile[:34] + "…") if len(current_subfile) > 36 else current_subfile
+            f_cur = format_file_size(file_copied)
+            f_tot = format_file_size(file_total) if file_total > 0 else ""
+            sub_extra = f" ({f_cur} / {f_tot})" if f_tot else (f" ({f_cur})" if file_copied > 0 else "")
+            spd_txt = f" • {speed_mb_s:.1f} MB/s" if speed_mb_s >= 0.1 else ""
+            self.lbl_subfile.config(text=f"↳ Datei: {disp_sub}{sub_extra}{spd_txt}")
+        else:
+            self.lbl_subfile.config(text="")
+
+        if total_bytes > 0:
+            pct = max(0, min(100, int((copied_bytes / float(total_bytes)) * 100)))
+            fill_w = max(0, min(self.bar_w, int(self.bar_w * (copied_bytes / float(total_bytes)))))
+            cur_str = format_file_size(copied_bytes)
+            all_str = format_file_size(total_bytes)
+            spd_info = f" • {speed_mb_s:.1f} MB/s" if speed_mb_s >= 0.1 else ""
+            self.lbl_pct.config(text=f"{pct} % ({cur_str} von {all_str}){spd_info} • Die Oberfläche bleibt aktiv")
+        elif file_total > 0:
+            pct = max(0, min(100, int((file_copied / float(file_total)) * 100)))
+            fill_w = max(0, min(self.bar_w, int(self.bar_w * (file_copied / float(file_total)))))
+            cur_str = format_file_size(file_copied)
+            all_str = format_file_size(file_total)
+            spd_info = f" • {speed_mb_s:.1f} MB/s" if speed_mb_s >= 0.1 else ""
+            self.lbl_pct.config(text=f"{pct} % ({cur_str} von {all_str}){spd_info} • Die Oberfläche bleibt aktiv")
+        else:
+            pct = int((item_idx / float(total_items)) * 100)
+            fill_w = int(self.bar_w * (item_idx / float(total_items)))
+            self.lbl_pct.config(text=f"{pct} % abgeschlossen • Die Oberfläche bleibt aktiv")
+
+        self.progress_canvas.coords(self._bar_fill, 0, 0, fill_w, self.bar_h)
+
+
+FLUENT_MENU_IMG_CACHE = {}
+
+def get_fluent_menu_icon_photo(kind, size=16, is_active=False, is_danger=False):
+    """Erzeugt ein gestochen scharfes 16x16 Vektor-Icon mit 3x Supersampling für Fluent-Menüs."""
+    key = (kind, size, is_active, is_danger)
+    if key in FLUENT_MENU_IMG_CACHE:
+        return FLUENT_MENU_IMG_CACHE[key]
+    scale = 3
+    s = size * scale
+    u = s / 16.0
+    lw = max(2, round(1.3 * u))
+    im = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(im)
+
+    def px(x, y):
+        return (round(x * u), round(y * u))
+
+    k = (kind or "").strip()
+    norm_map = {
+        "👁": "preview", "📂": "folder", "✏️": "rename", "✏": "rename",
+        "⚡": "zap", "▶": "play", "📄": "doc", "⛔": "skip", "🗑": "trash",
+        "📋": "copy", "🔍": "compare", "⇄": "swap", "✂️": "scissors",
+        "✂": "scissors", "✓": "check", "✕": "cross", "↺": "refresh",
+        "⬅": "arrow_left", "➔": "arrow_right", "⏮": "arrow_first",
+        "⏭": "arrow_last", "📌": "pin", "🕒": "clock", "ℹ": "info",
+        "🔤": "text", "📏": "ruler", "📖": "book", "📚": "books"
+    }
+    k = norm_map.get(k, k)
+
+    if k in ("preview", "eye"):
+        pts = [px(1.5, 8.0), px(4.5, 4.0), px(8.0, 3.2), px(11.5, 4.0), px(14.5, 8.0),
+               px(11.5, 12.0), px(8.0, 12.8), px(4.5, 12.0)]
+        d.polygon(pts, fill="#eff6ff", outline="#2563eb", width=lw)
+        d.ellipse([px(5.5, 5.5), px(10.5, 10.5)], fill="#2563eb")
+        d.ellipse([px(8.3, 6.7), px(9.7, 8.1)], fill="#ffffff")
+
+    elif k in ("folder", "folder_target"):
+        d.polygon([px(1.5, 4.5), px(1.5, 2.5), px(6.0, 2.5), px(7.5, 4.5)], fill="#d97706")
+        d.rounded_rectangle([px(1.5, 4.2), px(14.5, 13.5)], radius=max(2, round(1.2 * u)), fill="#fef3c7", outline="#d97706", width=lw)
+
+    elif k in ("rename", "pencil", "edit"):
+        d.polygon([px(3.5, 12.5), px(4.0, 10.0), px(11.5, 2.5), px(13.5, 4.5), px(6.0, 12.0)], fill="#0d9488", outline="#0f766e", width=lw)
+        d.polygon([px(2.0, 14.0), px(4.0, 10.0), px(6.0, 12.0)], fill="#fde047", outline="#0f766e", width=lw)
+        d.polygon([px(2.0, 14.0), px(2.8, 12.5), px(3.5, 13.2)], fill="#0f172a")
+        d.polygon([px(11.5, 2.5), px(13.5, 4.5), px(14.5, 3.5), px(12.5, 1.5)], fill="#fda4af", outline="#e11d48", width=max(1, round(0.8 * u)))
+
+    elif k in ("zap", "flash", "bolt"):
+        pts = [px(9.0, 1.2), px(4.2, 8.2), px(8.2, 8.2), px(7.0, 14.8), px(12.8, 6.8), px(8.8, 6.8)]
+        d.polygon(pts, fill="#f59e0b", outline="#d97706", width=lw)
+
+    elif k in ("play", "execute"):
+        pts = [px(4.0, 2.5), px(13.5, 8.0), px(4.0, 13.5)]
+        d.polygon(pts, fill="#16a34a", outline="#15803d", width=lw)
+
+    elif k in ("doc", "app", "file"):
+        d.polygon([px(3.0, 1.5), px(10.0, 1.5), px(13.0, 4.5), px(13.0, 14.5), px(3.0, 14.5)], fill="#eff6ff", outline="#0284c7", width=lw)
+        d.polygon([px(10.0, 1.5), px(13.0, 4.5), px(10.0, 4.5)], fill="#bae6fd", outline="#0284c7", width=lw)
+        d.line([px(5.2, 7.5), px(10.8, 7.5)], fill="#334155", width=max(1, round(1.1 * u)))
+        d.line([px(5.2, 10.0), px(10.8, 10.0)], fill="#334155", width=max(1, round(1.1 * u)))
+
+    elif k in ("explorer", "window"):
+        d.rounded_rectangle([px(1.5, 2.5), px(14.5, 13.5)], radius=max(2, round(1.2 * u)), fill="#f8fafc", outline="#475569", width=lw)
+        d.line([px(1.5, 5.5), px(14.5, 5.5)], fill="#475569", width=lw)
+        d.line([px(6.0, 5.5), px(6.0, 13.5)], fill="#475569", width=max(1, round(1.0 * u)))
+
+    elif k in ("skip", "minus", "pause"):
+        d.ellipse([px(2.0, 2.0), px(14.0, 14.0)], fill="#fff7ed", outline="#ea580c", width=lw)
+        d.line([px(5.0, 8.0), px(11.0, 8.0)], fill="#ea580c", width=max(2, round(1.8 * u)))
+
+    elif k in ("trash", "delete"):
+        d.line([px(2.5, 4.0), px(13.5, 4.0)], fill="#dc2626", width=lw)
+        d.line([px(6.0, 2.2), px(10.0, 2.2)], fill="#dc2626", width=lw)
+        d.polygon([px(4.0, 4.5), px(12.0, 4.5), px(11.0, 14.0), px(5.0, 14.0)], fill="#fef2f2", outline="#dc2626", width=lw)
+        d.line([px(6.5, 6.5), px(6.5, 11.5)], fill="#dc2626", width=max(1, round(1.0 * u)))
+        d.line([px(9.5, 6.5), px(9.5, 11.5)], fill="#dc2626", width=max(1, round(1.0 * u)))
+
+    elif k in ("copy", "clipboard"):
+        d.rounded_rectangle([px(3.0, 3.0), px(13.0, 14.5)], radius=max(1, round(1.0 * u)), fill="#ecfdf5", outline="#059669", width=lw)
+        d.rounded_rectangle([px(5.5, 1.5), px(10.5, 4.5)], radius=max(1, round(0.8 * u)), fill="#059669")
+        d.line([px(5.2, 7.5), px(10.8, 7.5)], fill="#059669", width=max(1, round(1.1 * u)))
+        d.line([px(5.2, 10.0), px(9.5, 10.0)], fill="#059669", width=max(1, round(1.1 * u)))
+
+    elif k in ("compare", "search"):
+        d.ellipse([px(2.5, 2.5), px(11.0, 11.0)], fill="#eff6ff", outline="#2563eb", width=lw)
+        d.line([px(9.5, 9.5), px(14.0, 14.0)], fill="#2563eb", width=max(2, round(2.0 * u)))
+
+    elif k in ("swap", "arrows"):
+        d.line([px(3.0, 5.5), px(12.5, 5.5)], fill="#475569", width=lw)
+        d.polygon([px(10.5, 3.2), px(13.5, 5.5), px(10.5, 7.8)], fill="#475569")
+        d.line([px(13.0, 10.5), px(3.5, 10.5)], fill="#475569", width=lw)
+        d.polygon([px(5.5, 8.2), px(2.5, 10.5), px(5.5, 12.8)], fill="#475569")
+
+    elif k in ("scissors", "cut"):
+        d.ellipse([px(2.0, 10.0), px(6.5, 14.5)], outline="#7c3aed", width=lw)
+        d.ellipse([px(9.5, 10.0), px(14.0, 14.5)], outline="#7c3aed", width=lw)
+        d.line([px(5.5, 11.0), px(12.5, 2.5)], fill="#7c3aed", width=lw)
+        d.line([px(10.5, 11.0), px(3.5, 2.5)], fill="#7c3aed", width=lw)
+
+    elif k in ("check",):
+        pts = [px(2.5, 8.5), px(6.5, 12.5), px(13.5, 3.5)]
+        d.line(pts, fill="#2563eb", width=max(2, round(2.2 * u)), joint="curve")
+
+    elif k in ("cross",):
+        d.line([px(3.5, 3.5), px(12.5, 12.5)], fill="#64748b", width=lw)
+        d.line([px(12.5, 3.5), px(3.5, 12.5)], fill="#64748b", width=lw)
+
+    elif k in ("refresh", "undo"):
+        d.arc([px(2.5, 2.5), px(13.5, 13.5)], start=40, end=320, fill="#475569", width=lw)
+        d.polygon([px(11.0, 1.5), px(14.5, 4.5), px(10.0, 6.0)], fill="#475569")
+
+    elif k in ("arrow_left",):
+        d.line([px(13.0, 8.0), px(3.5, 8.0)], fill="#475569", width=lw)
+        d.polygon([px(6.5, 4.5), px(2.5, 8.0), px(6.5, 11.5)], fill="#475569")
+
+    elif k in ("arrow_right",):
+        d.line([px(3.0, 8.0), px(12.5, 8.0)], fill="#475569", width=lw)
+        d.polygon([px(9.5, 4.5), px(13.5, 8.0), px(9.5, 11.5)], fill="#475569")
+
+    elif k in ("arrow_first",):
+        d.line([px(3.0, 3.5), px(3.0, 12.5)], fill="#475569", width=lw)
+        d.line([px(13.0, 8.0), px(5.5, 8.0)], fill="#475569", width=lw)
+        d.polygon([px(8.5, 4.5), px(4.5, 8.0), px(8.5, 11.5)], fill="#475569")
+
+    elif k in ("arrow_last",):
+        d.line([px(13.0, 3.5), px(13.0, 12.5)], fill="#475569", width=lw)
+        d.line([px(3.0, 8.0), px(10.5, 8.0)], fill="#475569", width=lw)
+        d.polygon([px(7.5, 4.5), px(11.5, 8.0), px(7.5, 11.5)], fill="#475569")
+
+    elif k in ("pin",):
+        d.polygon([px(4.0, 4.0), px(12.0, 4.0), px(10.0, 8.5), px(6.0, 8.5)], fill="#f59e0b", outline="#ea580c", width=lw)
+        d.line([px(8.0, 8.5), px(8.0, 14.5)], fill="#64748b", width=lw)
+
+    elif k in ("clock",):
+        d.ellipse([px(2.0, 2.0), px(14.0, 14.0)], fill="#f8fafc", outline="#64748b", width=lw)
+        d.line([px(8.0, 8.0), px(8.0, 4.5)], fill="#475569", width=lw)
+        d.line([px(8.0, 8.0), px(11.0, 8.0)], fill="#475569", width=lw)
+
+    elif k in ("info",):
+        d.ellipse([px(2.0, 2.0), px(14.0, 14.0)], fill="#eff6ff", outline="#0284c7", width=lw)
+        d.ellipse([px(7.0, 4.0), px(9.0, 6.0)], fill="#0284c7")
+        d.line([px(8.0, 7.5), px(8.0, 11.5)], fill="#0284c7", width=lw)
+
+    elif k in ("text",):
+        d.text((round(2 * u), round(1 * u)), "Aa", fill="#0284c7")
+
+    elif k in ("ruler",):
+        d.rounded_rectangle([px(2.0, 4.0), px(14.0, 12.0)], radius=max(1, round(0.8 * u)), fill="#fef3c7", outline="#d97706", width=lw)
+        d.line([px(5.0, 4.0), px(5.0, 7.0)], fill="#d97706", width=max(1, round(1.0 * u)))
+        d.line([px(8.0, 4.0), px(8.0, 8.5)], fill="#d97706", width=max(1, round(1.0 * u)))
+        d.line([px(11.0, 4.0), px(11.0, 7.0)], fill="#d97706", width=max(1, round(1.0 * u)))
+
+    elif k in ("book",):
+        d.rounded_rectangle([px(2.5, 2.5), px(13.5, 13.5)], radius=round(1.2 * u), fill="#eff6ff", outline="#0284c7", width=lw)
+        d.line([px(5.0, 2.5), px(5.0, 13.5)], fill="#0284c7", width=lw)
+        d.line([px(7.0, 5.5), px(11.5, 5.5)], fill="#334155", width=max(1, round(1.0 * u)))
+        d.line([px(7.0, 8.5), px(11.5, 8.5)], fill="#334155", width=max(1, round(1.0 * u)))
+
+    elif k in ("books",):
+        d.rounded_rectangle([px(2.0, 7.5), px(14.0, 13.5)], radius=round(1.0 * u), fill="#ecfdf5", outline="#059669", width=lw)
+        d.rounded_rectangle([px(3.5, 2.5), px(12.5, 7.5)], radius=round(1.0 * u), fill="#eff6ff", outline="#0284c7", width=lw)
+
+    elif k in ("pin_outline",):
+        d.polygon([px(4.2, 4.0), px(11.8, 4.0), px(10.0, 8.4), px(6.0, 8.4)], fill="#ffffff", outline="#94a3b8", width=lw)
+        d.line([px(8.0, 8.4), px(8.0, 14.2)], fill="#94a3b8", width=lw)
+
+    elif k in ("plus",):
+        c_pl = "#2563eb" if not is_danger else "#dc2626"
+        d.ellipse([px(1.6, 1.6), px(14.4, 14.4)], fill="#eff6ff", outline="#93c5fd", width=max(1, round(1.1 * u)))
+        d.line([px(8.0, 4.6), px(8.0, 11.4)], fill=c_pl, width=max(2, round(1.7 * u)))
+        d.line([px(4.6, 8.0), px(11.4, 8.0)], fill=c_pl, width=max(2, round(1.7 * u)))
+
+    elif k in ("usb", "drive"):
+        d.rounded_rectangle([px(5.0, 1.4), px(11.0, 5.0)], radius=max(1, round(0.8 * u)), fill="#dbeafe", outline="#1d4ed8", width=max(1, round(1.0 * u)))
+        d.rectangle([px(6.4, 2.4), px(7.4, 3.8)], fill="#2563eb")
+        d.rectangle([px(8.6, 2.4), px(9.6, 3.8)], fill="#2563eb")
+        d.rounded_rectangle([px(3.6, 4.8), px(12.4, 14.6)], radius=max(2, round(1.3 * u)), fill="#2563eb", outline="#1d4ed8", width=lw)
+        d.ellipse([px(6.8, 8.5), px(9.2, 10.9)], fill="#ffffff")
+
+    elif k in ("cross_danger",):
+        d.line([px(3.8, 3.8), px(12.2, 12.2)], fill="#dc2626", width=lw)
+        d.line([px(12.2, 3.8), px(3.8, 12.2)], fill="#dc2626", width=lw)
+
+    im = im.resize((size, size), Image.Resampling.LANCZOS)
+    photo = ImageTk.PhotoImage(im)
+    FLUENT_MENU_IMG_CACHE[key] = photo
+    return photo
+
+
 class FluentPopupMenu(tk.Toplevel):
-    """Modernes, helles Fluent-Kontextmenü (ersetzt das veraltete graue Standard-Menü)."""
+    """Modernes, helles Fluent-Kontextmenü mit gestochen scharfen 3x-Vektor-Icons und Windows 11 Fluent-Design."""
 
     def __init__(self, parent, items: list[dict], x: int, y: int):
         super().__init__(parent)
@@ -4075,75 +4632,101 @@ class FluentPopupMenu(tk.Toplevel):
             pass
         self.configure(bg="#cbd5e1", padx=1, pady=1)
 
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.winfo_id()) or self.winfo_id()
+            DWMWA_WINDOW_CORNER_PREFERENCE = 33
+            DWMWCP_ROUNDSMALL = 3
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_WINDOW_CORNER_PREFERENCE,
+                ctypes.byref(ctypes.c_int(DWMWCP_ROUNDSMALL)),
+                ctypes.sizeof(ctypes.c_int),
+            )
+        except Exception:
+            pass
+
         self.parent = parent
         self.items_spec = items
         self.row_widgets = []
         self._closed = False
         self._outside_bind_id = None
 
-        self.card = tk.Frame(self, bg="#ffffff", padx=4, pady=5)
+        self.card = tk.Frame(self, bg="#ffffff", padx=4, pady=4)
         self.card.pack(fill="both", expand=True)
 
         for entry in items:
             kind = entry.get("kind", "cmd")
-            if kind == "sep":
+            if kind == "sep" or entry.get("separator"):
                 sep = tk.Frame(self.card, bg="#e2e8f0", height=1)
-                sep.pack(fill="x", padx=6, pady=4)
+                sep.pack(fill="x", padx=8, pady=4)
+                continue
+            if kind == "header":
+                hdr = tk.Label(
+                    self.card,
+                    text=entry.get("label", ""),
+                    font=("Segoe UI", 8, "bold"),
+                    bg="#ffffff",
+                    fg="#64748b",
+                    anchor="w",
+                    padx=10,
+                    pady=4,
+                )
+                hdr.pack(fill="x")
                 continue
 
             icon = entry.get("icon", "")
             label = entry.get("label", "")
             cmd = entry.get("command")
+            shortcut = entry.get("shortcut", "")
             danger = bool(entry.get("danger", False))
             accent = bool(entry.get("accent", False))
 
+            # Shortcut automatisch aus Label extrahieren, falls vorhanden (z. B. "(F2)", "(Entf)", "(Strg+Z)")
+            if not shortcut and "(" in label and label.endswith(")"):
+                pos = label.rfind("(")
+                cand = label[pos + 1 : -1].strip()
+                if cand in ("F2", "Entf", "Leertaste", "Enter", "Strg+Z", "Strg+F", "Esc") or "Taste" in cand:
+                    shortcut = cand
+                    label = label[:pos].strip()
+
             base_bg = "#ffffff"
-            hover_bg = "#fef2f2" if danger else "#eff6ff"
-            fg_norm = "#dc2626" if danger else ("#1d4ed8" if accent else "#1e293b")
-            fg_hover = "#b91c1c" if danger else "#1d4ed8"
-            ico_fg = "#dc2626" if danger else ("#2563eb" if accent else "#475569")
+            hover_bg = "#fef2f2" if danger else ("#eff6ff" if accent else "#f1f5f9")
+            fg_norm = "#dc2626" if danger else ("#2563eb" if accent else "#0f172a")
+            font_spec = ("Segoe UI", 9, "bold" if accent else "normal")
 
             row = tk.Frame(self.card, bg=base_bg, cursor="hand2")
-            row.pack(fill="x", pady=1)
+            row.pack(fill="x", padx=2, pady=1)
 
-            lbl_ico = tk.Label(
-                row,
-                text=icon,
-                font=("Segoe UI", 9),
-                bg=base_bg,
-                fg=ico_fg,
-                width=3,
-                anchor="center",
-            )
-            lbl_ico.pack(side="left", padx=(4, 2), pady=5)
+            photo = get_fluent_menu_icon_photo(icon, size=16, is_active=accent, is_danger=danger)
+            lbl_ico = tk.Label(row, image=photo, bg=base_bg, width=22, height=22, anchor="center")
+            lbl_ico.image = photo
+            lbl_ico.pack(side="left", padx=(6, 8), pady=3)
 
-            lbl_txt = tk.Label(
-                row,
-                text=label,
-                font=("Segoe UI", 9, "bold" if accent else "normal"),
-                bg=base_bg,
-                fg=fg_norm,
-                anchor="w",
-            )
-            lbl_txt.pack(side="left", fill="x", expand=True, padx=(2, 12), pady=5)
+            lbl_txt = tk.Label(row, text=label, font=font_spec, bg=base_bg, fg=fg_norm, anchor="w")
+            lbl_txt.pack(side="left", fill="x", expand=True, pady=3)
 
-            def _make_handlers(r=row, li=lbl_ico, lt=lbl_txt, hb=hover_bg, bb=base_bg, fn=fg_norm, fh=fg_hover, ifg=ico_fg, fn_cmd=cmd):
+            lbl_sc = None
+            if shortcut:
+                lbl_sc = tk.Label(row, text=shortcut, font=("Segoe UI", 8), bg=base_bg, fg="#64748b", anchor="e")
+                lbl_sc.pack(side="right", padx=(8, 8), pady=3)
+
+            def _make_handlers(r=row, li=lbl_ico, lt=lbl_txt, ls=lbl_sc, hb=hover_bg, bb=base_bg, fn_cmd=cmd):
+                widgets = [w for w in (r, li, lt, ls) if w is not None]
+
                 def on_enter(_e=None):
-                    r.config(bg=hb)
-                    li.config(bg=hb, fg=fh)
-                    lt.config(bg=hb, fg=fh)
+                    for w in widgets:
+                        w.config(bg=hb)
 
                 def on_leave(_e=None):
-                    r.config(bg=bb)
-                    li.config(bg=bb, fg=ifg)
-                    lt.config(bg=bb, fg=fn)
+                    for w in widgets:
+                        w.config(bg=bb)
 
                 def on_click(_e=None):
                     self.close()
                     if callable(fn_cmd):
                         self.parent.after(10, fn_cmd)
 
-                for w in (r, li, lt):
+                for w in widgets:
                     w.bind("<Enter>", on_enter)
                     w.bind("<Leave>", on_leave)
                     w.bind("<Button-1>", on_click)
@@ -4153,7 +4736,7 @@ class FluentPopupMenu(tk.Toplevel):
             self.row_widgets.append(_make_handlers())
 
         self.update_idletasks()
-        mw = max(220, self.winfo_reqwidth())
+        mw = max(260, self.winfo_reqwidth() + 16)
         mh = self.winfo_reqheight()
         sw = self.winfo_screenwidth()
         sh = self.winfo_screenheight()
@@ -4299,10 +4882,10 @@ class FilePreviewPane(tk.Frame):
             text="📂 Im Explorer",
             command=lambda: self._on_open_folder(self._current_item) if (self._current_item and callable(self._on_open_folder)) else None,
             bg="#ffffff",
-            fg="#334155",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=10,
             pady=5,
@@ -4469,7 +5052,13 @@ class FilePreviewPane(tk.Frame):
         src_path = Path(item["src_path"])
         is_dir = bool(item.get("is_dir"))
         self.lbl_name.config(text=f"{'📁 ' if is_dir else ''}{item.get('name', src_path.name)}")
-        self._meta_labels["type_size"].config(text=f"{item.get('ext', '—')}  ·  {item.get('size_str', '—')}")
+        if is_dir:
+            cnt_str = item.get("items_count_str", "")
+            sz_str = item.get("size_str", "—")
+            combo = f"{sz_str} ({cnt_str})" if cnt_str and cnt_str != "—" else sz_str
+            self._meta_labels["type_size"].config(text=f"ORDNER  ·  {combo}")
+        else:
+            self._meta_labels["type_size"].config(text=f"{item.get('ext', '—')}  ·  {item.get('size_str', '—')}")
         self._meta_labels["date"].config(text=item.get("date", "—"))
         self._meta_labels["category"].config(text=item.get("label", "—"))
         self._meta_labels["target"].config(text=item.get("target_sub", "—").replace("/", " \\ "))
@@ -4516,51 +5105,37 @@ class FilePreviewPane(tk.Frame):
 
 APP_INFO_SECTIONS = [
     (
-        "1. Ablauf in 3 Schritten (vor der Ausführung bleibt alles unverändert)",
-        "• Schritt 1 – Auswahl & Filter: Sie wählen Quellordner (oder Laufwerk), Zielordner, Modus (Kopieren/Verschieben) sowie gewünschte Filter.\n"
-        "• Schritt 2 – Interaktive Vorschau: Alle Treffer werden zuerst nur aufgelistet – am Quellordner wird noch nichts geändert. Hier prüfen Sie Vorschauen, Duplikate oder löschen Unerwünschtes.\n"
-        "• Schritt 3 – Sortierung & Rückgängig: Erst mit „Jetzt sortieren & anwenden“ wird sortiert. Danach lassen sich auf Wunsch alle Schritte per „Rückgängig“ wiederherstellen.",
+        "Schritt 1 – Auswahl, Unterordner & Filter",
+        "• Quelle, Ziel & Modus: Quellordner (oder Laufwerk), Zielordner und Aktion (Kopieren oder Verschieben) wählen. Vor Schritt 3 wird noch nichts verändert.\n"
+        "• Unterordner – Inhalte einzeln: Durchsucht alle Unterordner und sortiert jede Datei einzeln nach Kategorie.\n"
+        "• Unterordner – Als Ganzes: Hält jeden Unterordner komplett zusammen (ideal für Buch-, Foto- oder Projektordner).\n"
+        "• Unterordner – Ignorieren: Sortiert nur lose Dateien im Hauptordner; alle Unterordner bleiben unberührt.\n"
+        "• Filter: Dateitypen (Alle, Bilder, Texte & Docs, Office, Videos & Audio, Programme), Zeitraum, Mindestgröße und Suchfilter kombinierbar.",
     ),
     (
-        "2. Wie „Original“ und „Duplikat“ ermittelt werden",
-        "• Entscheidend ist der exakte Dateiinhalt (MD5-Fingerabdruck) – nicht bloß Dateiname oder Dateigröße: Zwei Dateien sind genau dann Duplikate, wenn ihr Byte-Inhalt (und damit auch ihre Dateigröße) zu 100 % identisch ist, selbst wenn sie unterschiedlich heißen oder in verschiedenen Ordnern liegen.\n"
-        "• Schneller Größen-Vorfilter: Damit selbst große Scans auf C:\\ blitzschnell bleiben, berechnet das Programm den MD5-Inhalts-Fingerabdruck nur für lokale Dateien, deren Dateigröße mindestens doppelt vorkommt – Dateien mit eindeutiger Dateigröße müssen gar nicht komplett gelesen werden.\n"
-        "• Zwei verschiedene Dateien mit gleichem Namen (z. B. zwei unterschiedliche „foto.jpg“) werden NICHT als Duplikat eingestuft.\n"
-        "• Wer wird als „Original“ gewählt? Über „🎯 Original-Wahl“ legen Sie die Strategie fest: standardmäßig gewinnt der saubere Dateiname ohne Anhängsel wie „ (1)“, „_2“ oder „_kopie“ – alternativ auch die neueste, älteste oder pfadkürzeste Datei.\n"
-        "• Direkter Bild-/Text-Vergleich & Tauschen: Mit „🔍 Vergleichen…“ sehen Sie Original und Duplikat direkt nebeneinander inklusive Live-Vorschau und können Rollen bei Bedarf per Klick tauschen.\n"
-        "• Hinweis: Bei ganzen Ordnern („Als Ganzes“) und reinen Cloud-Dateien („☁️ Cloud“) wird kein Inhalts-Fingerabdruck berechnet.",
+        "Schritt 2 – Vorschau, Anpassen & Aufräumen",
+        "• Zielordner ändern: Eine oder mehrere Zeilen markieren → „Zielordner ändern“ oder „⚡ Zuletzt“ weist einen neuen Ordner zu – optional als Stichwort-Regel („⚙ Regeln“) für künftige Scans merken.\n"
+        "• Dateinamen bearbeiten: Mit „F2“ direkt umbenennen, über „Namen kürzen“ automatisch straffen oder unten mittig per „⬅ Zurück zur Original-Vorschau“ alles zurücksetzen.\n"
+        "• Live-Filter & Vorschau: „Strg+F“ und die Schnellfilter-Chips filtern sofort ohne Neuscan; „Leertaste“ oder „Vorschau“ zeigt Bilder, PDFs, Office-, ZIP- und Ordnerinhalte rechts an.\n"
+        "• Schnelles Löschen: „Entf“ oder Rechtsklick verschiebt markierte Dateien direkt in den Windows-Papierkorb.",
     ),
     (
-        "3. Zielordner im 7-Ordner-System, direkte Umstellung & eigene Regeln",
-        "• Das Programm ordnet anhand von Dateiendung, Dateiname und – bei lokalen Text-, CSV-, JSON-, HTML- und PDF-Dateien – anhand von Schlüsselwörtern im Text den passenden Zielordner (02_Finanzen_Steuern bis 09_Videos_Medien bzw. 10_Ordner_Projekte) zu; Unbekanntes landet sicher in 01_Eingang_Inbox.\n"
-        "• Zielordner in Schritt 2 direkt ändern & Regeln merken: Per Rechtsklick oder „📂 Zielordner ändern…“ weisen Sie einzelnen oder mehreren markierten Dateien sofort einen anderen Zielordner zu – optional inkl. gemerktem Stichwort für alle künftigen Scans (custom_rules.json).\n"
-        "• Bild-Unterordner über Suchfilter: Wenn im Feld „Suchfilter“ ein Begriff (z. B. „Spencer“) steht, wird in „07_Bilder“ automatisch der Unterordner „07_Bilder\\Spencer“ angelegt.",
+        "Schritt 3 – Sortieren & Rückgängig",
+        "• Auswählen & Anwenden: Gewünschte Zeilen markieren oder per „✓ Alle wählen“ die ganze Liste auswählen – erst dann wird der blaue Button aktiv („Auf X markierte anwenden“ bzw. „Auf alle X anwenden“). Ohne Auswahl passiert nichts.\n"
+        "• Sicher rückgängig machen: Nach dem Sortieren lässt sich der Vorgang per „Rückgängig“ komplett wiederherstellen.",
     ),
     (
-        "4. OneDrive- & Systemschutz, Dateigröße & Zeitraum",
-        "• OneDrive-Schutz: Standardmäßig ist „OneDrive“ deaktiviert – reine Cloud-Platzhalter und OneDrive-Ordner werden übersprungen, sodass bei einer Suche auf C:\\ nichts aus der Cloud heruntergeladen wird. Selbst bei aktiviertem OneDrive-Schalter werden in der Vorschau keine Cloud-Dateien gelesen oder gehasht.\n"
-        "• Systemschutz (standardmäßig aktiv): Überspringt System-, Treiber- und Entwicklerordner wie ProgramData, Python3*, DriverStore, Recovery, .venv oder __pycache__, damit nur Ihre persönlichen Dateien in der Vorschau landen.\n"
-        "• Mindestgröße („Ab …“): Mit Vorgaben wie „> 100 KB“ oder „> 1 MB“ blenden Sie kleine Programm-Icons (.ico) oder Mini-Grafiken direkt aus.\n"
-        "• Zeitraum & Suchfilter: Grenzen Änderungsdatum, Pfadnamen und lesbaren Textinhalt gezielt ein.",
+        "Duplikate – Erkennung & Möglichkeiten",
+        "• Echte Inhaltsprüfung: Zwei Dateien sind nur dann Duplikate, wenn ihr Byte-Inhalt (MD5) zu 100 % identisch ist – unabhängig vom Dateinamen.\n"
+        "• Original-Wahl: Standardmäßig bleibt der sauberste Name (ohne „(1)“ oder „_kopie“); per „Original-Wahl“ umstellbar auf neueste, älteste oder pfadkürzeste Datei.\n"
+        "• Duplikat-Aktionen: „Alle überspringen“, „Alle mitkopieren“, „Ausgewählte/Alle löschen“ oder per „Vergleichen…“ nebeneinander prüfen und Rollen tauschen.",
     ),
     (
-        "5. Live-Filter, Vorschau, Spalten & schnelles Löschen",
-        "• Live-Suchfeld & Schnellfilter-Chips (Schritt 2): Mit „🔎 Suchen…“ (Strg+F) und den Chips („Alle“, „Duplikate“, „Inbox“, „Cloud“, „Gelöscht“) grenzen Sie die Ergebnistabelle sofort im Arbeitsspeicher ein – ohne neuen Suchlauf.\n"
-        "• Vorschau ohne Standard-App: Per „👁 Vorschau“, Leertaste oder Rechtsklick öffnet sich rechts eine Vorschau für Bilder (inkl. Pixelmaßen), Text-, Office- (.docx/.xlsx/.pptx), PDF-, ZIP- und Ordnerinhalte.\n"
-        "• Spalten & Sortierung: Klick auf eine Spaltenüberschrift sortiert (bei „Dateigröße“ numerisch). Spaltenreihenfolge, eigene Spaltenbreiten und Vorschau-Ansicht bleiben beim Neustart gespeichert.\n"
-        "• Löschen ohne Neu-Einlesen: Einzelne Dateien per Entf-Taste oder Rechtsklick landen direkt im Windows-Papierkorb und werden sofort in der Liste aktualisiert – ohne komplettes Neu-Durchsuchen.",
-    ),
-    (
-        "6. Netzwerksuche & Sicherheit in der Firma (einfach erklärt)",
-        "• 100 % offline & abhörsicher: Das Programm arbeitet komplett auf Ihrem PC – es sendet keine Dateien ins Internet, startet keinen fremden Server und respektiert genau die Windows-Zugriffsrechte, die Ihre IT für Sie freigeschaltet hat.\n"
-        "• Netzlaufwerke & Firmenserver finden: Verbundene Netzlaufwerke (z. B. Z:\\) erscheinen in der Ordner-Auswahl mit einem Weltkugel-Symbol 🌐; direkte Serverpfade (z. B. \\\\Server\\Freigabe) öffnen Sie bequem über „🌐 Netzwerkpfad…“.\n"
-        "• Warum „🛡️ Systemschutz“ & „🛡️ NetzwerkSchutz“ mit Passwort gesperrt sind:\n"
-        "  – Beide Schutzfunktionen lassen sich jederzeit einschalten – das Ausschalten ist jedoch durch ein IT-Passwort geschützt, damit System- und Team-Ordner nicht versehentlich gefährdet werden.\n"
-        "  – Standardpasswort ab Werk (Ersteinrichtung): 1234. Über „🔑 IT-Passwort“ oben rechts (oder im Freischalt-Fenster) kann die IT das Passwort jederzeit ändern.\n"
-        "• Warum der „🛡️ NetzwerkSchutz“ auf Netzlaufwerken schützt:\n"
-        "  – Lösch-Schutz: Auf Netzlaufwerken gibt es keinen Windows-Papierkorb! Eine gelöschte Datei wäre für alle Kollegen sofort weg. Solange der NetzwerkSchutz aktiv ist, verhindert die App daher das Löschen auf Netzlaufwerken und empfiehlt „⛔ Überspringen“.\n"
-        "  – Team-Ordner-Schutz: Wenn Sie im Modus „Verschieben“ versehentlich ein Netzlaufwerk sortieren wollen, warnt der NetzwerkSchutz vorher und bietet per Klick sicheres „Kopieren“ an, damit Originale auf dem Server für Kollegen erhalten bleiben.\n"
-        "• Schreibgeschützte Firmen-Installation: Liegt das Programm in einem geschützten Ordner (z. B. Programme oder auf einem Server), speichert es Ihre Einstellungen, Regeln und das Rückgängig-Protokoll automatisch in Ihrem persönlichen Windows-Benutzerordner (%APPDATA%\\7-Ordner-Pro).",
+        "Sortierlogik, Sicherheit & Offline-Betrieb",
+        "• 7-Ordner-System: Ordnet automatisch nach Dateityp, Name und Textinhalt zu; Unbekanntes landet sicher in „01_Eingang_Inbox“. Ein Suchfilter legt bei Bildern automatisch einen passenden Unterordner an.\n"
+        "• OneDrive-Schutz: Cloud-Platzhalter werden weder heruntergeladen noch gehasht.\n"
+        "• Systemschutz & NetzwerkSchutz: Überspringt Windows-/Entwicklerordner und verhindert versehentliches Löschen oder Verschieben auf Netzlaufwerken (Ausschalten mit IT-Passwort, Standard: 1234).\n"
+        "• 100 % offline: Keine Daten verlassen den PC; bei schreibgeschützter Installation liegen Einstellungen automatisch in %APPDATA%\\7-Ordner-Pro.",
     ),
 ]
 
@@ -4623,10 +5198,10 @@ class AdminPasswordDialog(tk.Toplevel):
             "🔑 Passwort ändern…",
             command=self._open_change_pw,
             bg="#ffffff",
-            fg="#334155",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=10,
             pady=5,
@@ -4649,10 +5224,10 @@ class AdminPasswordDialog(tk.Toplevel):
             "Abbrechen",
             command=self._cancel,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
             pady=5,
@@ -4771,10 +5346,10 @@ class ChangeAdminPasswordDialog(tk.Toplevel):
             "Abbrechen",
             command=self._cancel,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
             pady=5,
@@ -4854,7 +5429,7 @@ class AppInfoDialog(tk.Toplevel):
         title_col.pack(side="left", fill="x", expand=True)
         tk.Label(
             title_col,
-            text=f"Funktionsweise: 7-Ordner-Pro ({APP_VERSION})",
+            text=f"Funktionsweise: 7-Ordner-Pro {APP_VERSION}",
             font=("Segoe UI", 12, "bold"),
             bg="#f8fafc",
             fg="#0f172a",
@@ -4862,7 +5437,7 @@ class AppInfoDialog(tk.Toplevel):
         ).pack(fill="x")
         tk.Label(
             title_col,
-            text="Kurzüberblick über Sortierlogik, Duplikaterkennung, Cloud-Schutz & Vorschau",
+            text="Schritt-für-Schritt-Ablauf & alle Möglichkeiten kompakt erklärt",
             font=("Segoe UI", 9),
             bg="#f8fafc",
             fg="#64748b",
@@ -5255,95 +5830,194 @@ class CustomRulesDialog(tk.Toplevel):
 
 
 class TargetFolderDialog(tk.Toplevel):
-    """Light-Fluent-Dialog zum direkten Umstellen des Zielordners in Schritt 2 (+ optional Regel merken)."""
+    """Modernes Light-Fluent-Fenster zum Umstellen des Zielordners inkl. 5-Slot-Schnellauswahl & Automatik-Regel."""
 
-    def __init__(self, parent, items: list[dict]):
+    def __init__(self, parent, items: list[dict], total_active_count: int | None = None):
         super().__init__(parent)
         self.withdraw()
-        self.title("Zielordner ändern & Regel merken")
+        self.title("Zielordner wählen & Schnellauswahl")
         self.configure(bg="#f8fafc")
         self.transient(parent)
         self.grab_set()
         self.result = None
 
-        dw, dh = 820, 630
+        dw, dh = 920, 710
         try:
             parent.update_idletasks()
             px = parent.winfo_rootx() + max(0, (parent.winfo_width() - dw) // 2)
             py = parent.winfo_rooty() + max(0, (parent.winfo_height() - dh) // 2)
         except Exception:
-            px, py = 120, 90
+            px, py = 100, 60
         self.geometry(f"{dw}x{dh}+{px}+{py}")
-        self.minsize(720, 500)
+        self.minsize(800, 580)
 
         self._parent_app = parent
-        first = items[0] if items else {}
+        self._items = items or []
+        first = self._items[0] if self._items else {}
         cur_target = str(first.get("target_sub") or "01_Eingang_Inbox")
         cur_label = str(first.get("label") or "")
 
-        outer = tk.Frame(self, bg="#f8fafc", padx=16, pady=14)
+        self._total_cnt = total_active_count if total_active_count is not None else len(self._items)
+        self._sel_cnt = len(self._items)
+        is_all_default = (self._sel_cnt == self._total_cnt or self._sel_cnt == 0)
+        self.apply_all_rows_var = tk.BooleanVar(value=is_all_default)
+
+        self.target_var = tk.StringVar(value=cur_target)
+        self.label_var = tk.StringVar(value=cur_label)
+        self.search_var = tk.StringVar(value="")
+        self.save_rule_var = tk.BooleanVar(value=False)
+        self.keyword_var = tk.StringVar(value=suggest_rule_keyword(first.get("name", "")) if first else "")
+        self.apply_preview_var = tk.BooleanVar(value=True)
+
+        self._all_target_options = list(get_available_target_options())
+        self._target_to_label = {t: l for t, l in self._all_target_options}
+        self._row_map: dict[str, tuple[str, str]] = {}
+        self._slot_widgets: list[dict] = []
+        self._updating_target_internally = False
+
+        outer = tk.Frame(self, bg="#f8fafc", padx=18, pady=14)
         outer.pack(fill="both", expand=True)
 
-        n_cnt = len(items)
-        head_txt = f"Zielordner ändern für „{first.get('name', '')}“" if n_cnt == 1 else f"Zielordner für {n_cnt} ausgewählte Einträge ändern"
-        cur_disp = os.path.normpath(cur_target) if os.path.isabs(cur_target) else cur_target.replace("/", " \\ ")
-        tk.Label(outer, text=head_txt, font=("Segoe UI", 10, "bold"), bg="#f8fafc", fg="#0f172a", anchor="w").pack(fill="x")
-        tk.Label(outer, text=f"Aktueller Zielordner: {cur_disp}", font=("Segoe UI", 9), bg="#f8fafc", fg="#64748b", anchor="w").pack(fill="x", pady=(2, 10))
+        # ── 1. HEADER mit klarem 2-Wege-Umschalter (Auswahl vs. Alle) ──
+        head_row = tk.Frame(outer, bg="#f8fafc")
+        head_row.pack(fill="x", pady=(0, 10))
 
-        # Fusszeile & Karte 2 ZUERST von unten packen, damit Buttons niemals abgeschnitten werden
+        head_left = tk.Frame(head_row, bg="#f8fafc")
+        head_left.pack(side="left", fill="x", expand=True)
+
+        tk.Label(
+            head_left,
+            text="Zielordner wählen",
+            font=("Segoe UI", 13, "bold"),
+            bg="#f8fafc",
+            fg="#0f172a",
+            anchor="w",
+        ).pack(anchor="w")
+
+        cur_disp = os.path.normpath(cur_target) if os.path.isabs(cur_target) else cur_target.replace("/", " \\ ")
+        self.lbl_sub = tk.Label(
+            head_left,
+            text=f"Aktuell: {cur_disp}",
+            font=("Segoe UI", 9),
+            bg="#f8fafc",
+            fg="#64748b",
+            anchor="w",
+        )
+        self.lbl_sub.pack(anchor="w", pady=(1, 0))
+
+        # Segmented Scope Toggle rechts im Header
+        scope_wrap = tk.Frame(head_row, bg="#f8fafc")
+        scope_wrap.pack(side="right", anchor="e")
+
+        self.btn_scope_sel = None
+        self.btn_scope_all = None
+        if 0 < self._sel_cnt < self._total_cnt:
+            tk.Label(
+                scope_wrap,
+                text="Gilt für:",
+                font=("Segoe UI", 8, "bold"),
+                bg="#f8fafc",
+                fg="#64748b",
+            ).pack(side="left", padx=(0, 8))
+
+            self.btn_scope_sel = ModernRoundedButton(
+                scope_wrap,
+                text=f"Nur Auswahl · {self._sel_cnt}",
+                command=lambda: self._set_scope_all(False),
+                bg="#2563eb",
+                fg="#ffffff",
+                hover_bg="#1d4ed8",
+                border_color=None,
+                font=("Segoe UI", 9, "bold"),
+                r=8,
+                padx=12,
+                pady=5,
+            )
+            self.btn_scope_sel.pack(side="left", padx=(0, 6))
+
+            self.btn_scope_all = ModernRoundedButton(
+                scope_wrap,
+                text=f"Alle Einträge · {self._total_cnt}",
+                command=lambda: self._set_scope_all(True),
+                bg="#ffffff",
+                fg="#1e293b",
+                hover_bg="#f1f5f9",
+                border_color="#94a3b8",
+                font=("Segoe UI", 9, "bold"),
+                r=8,
+                padx=12,
+                pady=5,
+            )
+            self.btn_scope_all.pack(side="left")
+            self._update_scope_buttons()
+        else:
+            pill_lbl = tk.Label(
+                scope_wrap,
+                text=f"Alle {self._total_cnt} Einträge",
+                font=("Segoe UI", 9, "bold"),
+                bg="#dbeafe",
+                fg="#1d4ed8",
+                padx=10,
+                pady=4,
+            )
+            pill_lbl.pack(side="right")
+
+        # ── UNTEN ZUERST PACKEN: Fußzeile & optionale Regel-Karte (nie abgeschnitten!) ──
         foot = tk.Frame(outer, bg="#f8fafc")
-        foot.pack(side="bottom", fill="x", pady=(12, 2))
+        foot.pack(side="bottom", fill="x", pady=(12, 0))
 
         ModernRoundedButton(
             foot,
-            text="⚙ Gespeicherte Regeln…",
+            text="⚙ Regeln verwalten",
             command=lambda: CustomRulesDialog(self),
             bg="#ffffff",
-            fg="#334155",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
-            padx=10,
+            padx=12,
             pady=6,
         ).pack(side="left")
 
+        # Primär-Aktion ganz rechts: Sicher in Vorschau übernehmen!
         ModernRoundedButton(
             foot,
-            text="➔ Sofort verschieben",
-            command=lambda: self._on_confirm(execute_mode="move"),
+            text="✓ Ziel übernehmen",
+            command=self._on_confirm,
             bg="#2563eb",
             fg="#ffffff",
             hover_bg="#1d4ed8",
+            border_color=None,
             font=("Segoe UI", 9, "bold"),
             r=8,
-            padx=14,
+            padx=16,
             pady=6,
         ).pack(side="right")
 
         ModernRoundedButton(
             foot,
-            text="📋 Sofort kopieren",
-            command=lambda: self._on_confirm(execute_mode="copy"),
-            bg="#eff6ff",
-            fg="#1d4ed8",
-            hover_bg="#dbeafe",
-            border_color="#93c5fd",
+            text="➔ Sofort verschieben",
+            command=lambda: self._on_confirm(execute_mode="move"),
+            bg="#fff7ed",
+            fg="#c2410c",
+            hover_bg="#ffedd5",
+            border_color="#fdba74",
             font=("Segoe UI", 9, "bold"),
             r=8,
-            padx=14,
+            padx=12,
             pady=6,
         ).pack(side="right", padx=(0, 8))
 
         ModernRoundedButton(
             foot,
-            text="✓ Übernehmen",
-            command=self._on_confirm,
-            bg="#ffffff",
-            fg="#1e293b",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            text="📋 Sofort kopieren",
+            command=lambda: self._on_confirm(execute_mode="copy"),
+            bg="#f0fdf4",
+            fg="#15803d",
+            hover_bg="#dcfce7",
+            border_color="#86efac",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
             pady=6,
@@ -5354,58 +6028,236 @@ class TargetFolderDialog(tk.Toplevel):
             text="Abbrechen",
             command=self._on_close,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
             pady=6,
         ).pack(side="right", padx=(0, 8))
 
-        # Karte 2: Optionale Regel merken
-        rule_card = tk.Frame(outer, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1", padx=12, pady=10)
+        # ── KARTE 3: Optionale Automatik-Regel (verständlich & kompakt) ──
+        rule_card = tk.Frame(outer, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1", padx=14, pady=9)
         rule_card.pack(side="bottom", fill="x", pady=(10, 0))
 
-        self.save_rule_var = tk.BooleanVar(value=False)
-        self.keyword_var = tk.StringVar(value=suggest_rule_keyword(first.get("name", "")) if first else "")
-        self.apply_preview_var = tk.BooleanVar(value=True)
+        rule_top = tk.Frame(rule_card, bg="#ffffff")
+        rule_top.pack(fill="x")
 
         tk.Checkbutton(
-            rule_card,
-            text="2. Als eigene Regel für künftige Scans merken (custom_rules.json):",
+            rule_top,
+            text="Für künftige Scans automatisch merken",
             variable=self.save_rule_var,
-            font=("Segoe UI", 9),
+            command=self._update_rule_state,
+            font=("Segoe UI", 9, "bold"),
             bg="#ffffff",
             fg="#0f172a",
             activebackground="#ffffff",
             cursor="hand2",
-        ).pack(anchor="w")
+        ).pack(side="left")
 
-        kw_line = tk.Frame(rule_card, bg="#ffffff")
-        kw_line.pack(fill="x", pady=(4, 4))
-        tk.Label(kw_line, text="Stichwort:", font=("Segoe UI", 9), bg="#ffffff", fg="#334155").pack(side="left", padx=(20, 6))
-        self.ent_keyword = tk.Entry(kw_line, textvariable=self.keyword_var, width=28, font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
-        self.ent_keyword.pack(side="left", ipady=3)
-        tk.Label(kw_line, text="(Dateiname oder Textinhalt enthält dieses Wort)", font=("Segoe UI", 8), bg="#ffffff", fg="#64748b").pack(side="left", padx=(8, 0))
+        tk.Label(
+            rule_top,
+            text="Passende Dateien landen künftig von selbst in diesem Zielordner",
+            font=("Segoe UI", 8),
+            bg="#ffffff",
+            fg="#64748b",
+        ).pack(side="right")
 
-        tk.Checkbutton(
-            rule_card,
-            text="Regel sofort auch auf alle übrigen passenden Zeilen in dieser Vorschau anwenden",
+        self.rule_detail = tk.Frame(rule_card, bg="#ffffff")
+        self.rule_detail.pack(fill="x", pady=(6, 0))
+
+        self.lbl_kw = tk.Label(self.rule_detail, text="Wenn Name enthält:", font=("Segoe UI", 9), bg="#ffffff", fg="#334155")
+        self.lbl_kw.pack(side="left", padx=(20, 8))
+
+        kw_box = create_filter_box(
+            self.rule_detail,
+            self.keyword_var,
+            width=220,
+            height=30,
+            placeholder="z. B. Rechnung, Buch…",
+        )
+        kw_box.pack(side="left")
+        self.ent_keyword = kw_box.entry
+
+        self.chk_apply_preview = tk.Checkbutton(
+            self.rule_detail,
+            text="Sofort auch auf passende Zeilen in dieser Liste anwenden",
             variable=self.apply_preview_var,
             font=("Segoe UI", 9),
             bg="#ffffff",
             fg="#334155",
             activebackground="#ffffff",
             cursor="hand2",
-        ).pack(anchor="w", padx=(16, 0))
+        )
+        self.chk_apply_preview.pack(side="left", padx=(14, 0))
+        self._update_rule_state()
 
-        # Karte 1: Auswahl der Zielordner
-        list_card = tk.Frame(outer, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1", padx=10, pady=10)
+        # ── KARTE 1: Schnellauswahl (5 gleich breite Fluent-Karten) ──
+        self.recent_card = tk.Frame(outer, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1", padx=14, pady=10)
+        self.recent_card.pack(fill="x", pady=(0, 10))
+
+        rc_head = tk.Frame(self.recent_card, bg="#ffffff")
+        rc_head.pack(fill="x", pady=(0, 8))
+
+        ico_zap = get_fluent_menu_icon_photo("zap", size=16)
+        lbl_zap = tk.Label(rc_head, image=ico_zap, bg="#ffffff")
+        lbl_zap.image = ico_zap
+        lbl_zap.pack(side="left", padx=(0, 6))
+
+        tk.Label(
+            rc_head,
+            text="Schnellauswahl",
+            font=("Segoe UI", 10, "bold"),
+            bg="#ffffff",
+            fg="#0f172a",
+        ).pack(side="left")
+
+        tk.Label(
+            rc_head,
+            text="1× Klick = Auswählen  ·  2× Klick = Sofort übernehmen  ·  Pin = Dauerhaft behalten",
+            font=("Segoe UI", 8),
+            bg="#ffffff",
+            fg="#64748b",
+        ).pack(side="right")
+
+        self.slots_frame = tk.Frame(self.recent_card, bg="#ffffff")
+        self.slots_frame.pack(fill="x")
+        for c_idx in range(5):
+            self.slots_frame.columnconfigure(c_idx, weight=1, uniform="slot")
+
+        # ── KARTE 2: Zielordner wählen (7-Ordner-System ODER eigener Ordner auf PC/USB) ──
+        list_card = tk.Frame(outer, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1", padx=14, pady=10)
         list_card.pack(fill="both", expand=True)
 
-        tk.Label(list_card, text="1. Neuen Zielordner im 7-Ordner-System wählen:", font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a").pack(anchor="w", pady=(0, 6))
+        # Obere Werkzeugzeile in Karte 2: Suche links + 3 schnelle Ordner-Buttons rechts (alle 32px hoch!)
+        bar_row = tk.Frame(list_card, bg="#ffffff")
+        bar_row.pack(fill="x", pady=(0, 8))
 
+        search_box = create_filter_box(
+            bar_row,
+            self.search_var,
+            width=260,
+            height=32,
+            placeholder="Kategorie oder Ordner suchen…",
+        )
+        search_box.pack(side="left")
+        self.ent_search = search_box.entry
+
+        ModernRoundedButton(
+            bar_row,
+            text="Hauptziel",
+            command=self._pick_main_target_folder,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=11,
+            pady=5,
+            icon_kind="folder_same",
+        ).pack(side="right")
+
+        ModernRoundedButton(
+            bar_row,
+            text="USB-Stick",
+            command=self._pick_usb_stick_folder,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=11,
+            pady=5,
+            icon_kind="usb_stick",
+        ).pack(side="right", padx=(0, 6))
+
+        ModernRoundedButton(
+            bar_row,
+            text="Ordner auf PC wählen…",
+            command=self._browse_custom_folder,
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=12,
+            pady=5,
+            icon_kind="folder_adjacent",
+        ).pack(side="right", padx=(0, 6))
+
+        # Unten in Karte 2 ZUERST packen: Klares gewähltes Ziel-Feld + Kategorie-Badge + Anpinnen
+        sel_bar = tk.Frame(list_card, bg="#f8fafc", highlightthickness=1, highlightbackground="#e2e8f0", padx=10, pady=7)
+        sel_bar.pack(side="bottom", fill="x", pady=(8, 0))
+
+        self._ico_folder_bar = get_fluent_menu_icon_photo("folder", size=16)
+        self._ico_usb_bar = get_fluent_menu_icon_photo("usb", size=16)
+        self.lbl_target_ico = tk.Label(sel_bar, image=self._ico_folder_bar, bg="#f8fafc")
+        self.lbl_target_ico.pack(side="left", padx=(0, 6))
+
+        tk.Label(
+            sel_bar,
+            text="Gewähltes Ziel:",
+            font=("Segoe UI", 9, "bold"),
+            bg="#f8fafc",
+            fg="#334155",
+        ).pack(side="left", padx=(0, 8))
+
+        self.btn_pin_current = ModernRoundedButton(
+            sel_bar,
+            text="📌 Anpinnen",
+            command=self._pin_current_target,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#eff6ff",
+            border_color="#94a3b8",
+            font=("Segoe UI", 8, "bold"),
+            r=8,
+            padx=10,
+            pady=4,
+        )
+        self.btn_pin_current.pack(side="right", padx=(8, 0))
+        attach_tooltip(self.btn_pin_current, "Aktuelles Ziel dauerhaft oben in der Schnellauswahl fixieren")
+
+        self.lbl_cat_badge = tk.Label(
+            sel_bar,
+            text="",
+            font=("Segoe UI", 8, "bold"),
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            padx=8,
+            pady=3,
+        )
+        self.lbl_cat_badge.pack(side="right", padx=(8, 0))
+
+        self.ent_target_wrap = tk.Frame(
+            sel_bar,
+            bg="#ffffff",
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            padx=8,
+            pady=4,
+        )
+        self.ent_target_wrap.pack(side="left", fill="x", expand=True)
+
+        self.ent_target = tk.Entry(
+            self.ent_target_wrap,
+            textvariable=self.target_var,
+            font=("Segoe UI", 9),
+            bg="#ffffff",
+            fg="#0f172a",
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
+        )
+        self.ent_target.pack(fill="x", expand=True)
+        self.ent_target.bind("<FocusIn>", lambda _e: self.ent_target_wrap.config(highlightbackground="#2563eb", highlightthickness=2))
+        self.ent_target.bind("<FocusOut>", lambda _e: self.ent_target_wrap.config(highlightbackground="#cbd5e1", highlightthickness=1))
+
+        # Mitte in Karte 2: Übersichtliche 7-Ordner-Kategorieliste (Kategorie LINKS für jedermann!)
         tv_wrap = tk.Frame(list_card, bg="#ffffff", highlightthickness=1, highlightbackground="#e2e8f0")
         tv_wrap.pack(fill="both", expand=True)
 
@@ -5417,94 +6269,430 @@ class TargetFolderDialog(tk.Toplevel):
                 tree_style.layout("Picker.Treeview.Heading", tree_style.layout("Treeview.Heading"))
         except Exception:
             pass
-        tree_style.configure("Picker.Treeview", background="#ffffff", fieldbackground="#ffffff", foreground="#0f172a", rowheight=26, font=("Segoe UI", 9), borderwidth=0, relief="flat")
-        tree_style.configure("Picker.Treeview.Heading", background="#f8fafc", foreground="#475569", font=("Segoe UI", 9), bordercolor="#e2e8f0", lightcolor="#e2e8f0", darkcolor="#e2e8f0", borderwidth=1, relief="solid", padding=(6, 5))
+        tree_style.configure(
+            "Picker.Treeview",
+            background="#ffffff",
+            fieldbackground="#ffffff",
+            foreground="#0f172a",
+            rowheight=26,
+            font=("Segoe UI", 9),
+            borderwidth=0,
+            relief="flat",
+        )
+        tree_style.map(
+            "Picker.Treeview",
+            background=[("selected", "#dbeafe")],
+            foreground=[("selected", "#0f172a")],
+        )
+        tree_style.configure(
+            "Picker.Treeview.Heading",
+            background="#f8fafc",
+            foreground="#475569",
+            font=("Segoe UI", 9, "bold"),
+            bordercolor="#e2e8f0",
+            lightcolor="#e2e8f0",
+            darkcolor="#e2e8f0",
+            borderwidth=1,
+            relief="solid",
+            padding=(8, 5),
+        )
 
-        self.tree = ttk.Treeview(tv_wrap, columns=("target", "label"), show="headings", selectmode="browse", height=10, style="Picker.Treeview")
-        self.tree.heading("target", text="Zielordner-Pfad")
+        self.tree = ttk.Treeview(
+            tv_wrap,
+            columns=("label", "target"),
+            show="headings",
+            selectmode="browse",
+            height=7,
+            style="Picker.Treeview",
+        )
         self.tree.heading("label", text="Kategorie")
-        self.tree.column("target", width=340, anchor="w")
-        self.tree.column("label", width=220, anchor="w")
+        self.tree.heading("target", text="Ordner im 7-Ordner-System")
+        self.tree.column("label", width=260, anchor="w")
+        self.tree.column("target", width=440, anchor="w")
         vs = ttk.Scrollbar(tv_wrap, orient="vertical", command=self.tree.yview)
         self.tree.configure(yscrollcommand=vs.set)
         self.tree.pack(side="left", fill="both", expand=True)
         vs.pack(side="right", fill="y")
 
-        self.target_var = tk.StringVar(value=cur_target)
-        self.label_var = tk.StringVar(value=cur_label)
+        self._populate_category_tree()
+        self.tree.bind("<<TreeviewSelect>>", self._on_tree_select)
+        self.tree.bind("<Double-1>", lambda _e: self._on_confirm())
 
-        self._row_map = {}
+        self.search_var.trace_add("write", lambda *_: self._populate_category_tree())
+        self.target_var.trace_add("write", lambda *_: self._sync_target_preview_ui())
+
+        self.bind("<Escape>", lambda _e: self._on_close())
+        self.bind("<Return>", self._on_return_key)
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
+
+        self._render_recent_slots()
+        self._sync_target_preview_ui()
+
+        self.update_idletasks()
+        self.deiconify()
+        self.lift()
+        self.focus_set()
+
+    def _on_return_key(self, _e=None):
+        if self.focus_get() is self.ent_search:
+            children = self.tree.get_children()
+            if children:
+                self.tree.selection_set(children[0])
+                self.tree.focus(children[0])
+                self._on_tree_select()
+            return
+        self._on_confirm()
+
+    def _set_scope_all(self, apply_all: bool):
+        self.apply_all_rows_var.set(bool(apply_all))
+        self._update_scope_buttons()
+
+    def _update_scope_buttons(self):
+        if self.btn_scope_sel is None or self.btn_scope_all is None:
+            return
+        is_all = bool(self.apply_all_rows_var.get())
+        active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
+        self.btn_scope_all.update_style(**(active_kw if is_all else neutral_kw))
+        self.btn_scope_sel.update_style(**(neutral_kw if is_all else active_kw))
+
+    def _update_rule_state(self):
+        active = bool(self.save_rule_var.get())
+        self.lbl_kw.config(fg="#0f172a" if active else "#94a3b8")
+        self.ent_keyword.config(
+            state="normal" if active else "disabled",
+            fg="#0f172a" if active else "#94a3b8",
+            disabledbackground="#ffffff",
+            disabledforeground="#94a3b8",
+        )
+        self.chk_apply_preview.config(state="normal" if active else "disabled", fg="#334155" if active else "#94a3b8")
+
+    def _populate_category_tree(self):
+        q = self.search_var.get().strip().lower()
+        for rid in self.tree.get_children():
+            self.tree.delete(rid)
+        self._row_map.clear()
+
+        cur_tgt = self.target_var.get().strip().lower()
         select_rid = None
-        for tgt, lbl in get_available_target_options():
-            rid = self.tree.insert("", "end", values=(tgt.replace("/", " \\ "), lbl))
+        for tgt, lbl in self._all_target_options:
+            if q and (q not in lbl.lower() and q not in tgt.lower()):
+                continue
+            disp_tgt = os.path.normpath(tgt) if os.path.isabs(tgt) else tgt.replace("/", " \\ ")
+            rid = self.tree.insert("", "end", values=(lbl, disp_tgt))
             self._row_map[rid] = (tgt, lbl)
-            if tgt == cur_target:
+            if tgt.lower() == cur_tgt or disp_tgt.lower() == cur_tgt:
                 select_rid = rid
 
         if select_rid:
             self.tree.selection_set(select_rid)
             self.tree.see(select_rid)
 
-        custom_row = tk.Frame(list_card, bg="#ffffff")
-        custom_row.pack(fill="x", pady=(8, 0))
-        tk.Label(custom_row, text="Zielpfad:", width=9, anchor="w", font=("Segoe UI", 9), bg="#ffffff", fg="#334155").pack(side="left", padx=(0, 6))
-        self.ent_target = tk.Entry(custom_row, textvariable=self.target_var, font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
-        self.ent_target.pack(side="left", fill="x", expand=True, padx=(0, 8), ipady=4)
+    def _on_tree_select(self, _e=None):
+        sel = self.tree.selection()
+        if sel and sel[0] in self._row_map:
+            t_val, l_val = self._row_map[sel[0]]
+            self._updating_target_internally = True
+            self.target_var.set(t_val)
+            self.label_var.set(l_val)
+            self._updating_target_internally = False
+            self._sync_target_preview_ui()
 
-        ModernRoundedButton(
-            custom_row,
-            text="Ordner wählen…",
-            command=self._browse_custom_folder,
+    def _is_drive_or_usb(self, path: str) -> bool:
+        p = str(path or "").strip()
+        if ":\\" in p:
+            drive = p[0].upper()
+            if drive in "EFGHIJKLMNOPQRSTUVWXYZ" or "usb" in p.lower():
+                return True
+        return False
+
+    def _sync_target_preview_ui(self):
+        raw = self.target_var.get().strip()
+        if not self._updating_target_internally:
+            # Automatisch passende Kategorie ableiten
+            norm_rel = raw.replace("\\", "/")
+            if norm_rel in self._target_to_label:
+                self.label_var.set(self._target_to_label[norm_rel])
+            elif raw in self._target_to_label:
+                self.label_var.set(self._target_to_label[raw])
+            elif raw:
+                base = os.path.basename(raw.rstrip("\\/")) or raw
+                self.label_var.set(base)
+
+        lbl = self.label_var.get().strip() or "Eigener Ordner"
+        short_lbl = lbl if len(lbl) <= 22 else lbl[:20] + "…"
+        self.lbl_cat_badge.config(text=short_lbl)
+
+        ico = self._ico_usb_bar if self._is_drive_or_usb(raw) else self._ico_folder_bar
+        self.lbl_target_ico.config(image=ico)
+        self._highlight_matching_slot(raw)
+
+    def _highlight_matching_slot(self, raw_target: str):
+        cur_norm = os.path.normpath(raw_target).lower() if raw_target else ""
+        for sw in self._slot_widgets:
+            sp_norm = os.path.normpath(sw["path"]).lower()
+            is_sel = bool(cur_norm and cur_norm == sp_norm)
+            sw["set_selected"](is_sel)
+
+    def _render_recent_slots(self):
+        for w in self.slots_frame.winfo_children():
+            w.destroy()
+        self._slot_widgets.clear()
+
+        recent = getattr(self._parent_app, "recent_target_folders", [])
+        for idx in range(5):
+            slot_data = recent[idx] if idx < len(recent) else None
+            self._build_slot_card(idx, slot_data)
+        self._highlight_matching_slot(self.target_var.get().strip())
+
+    def _build_slot_card(self, idx: int, slot: dict | None):
+        pad_l = 0 if idx == 0 else 8
+
+        if not slot:
+            # Einladender, klickbarer freier Slot zum direkten Favoriten-Fixieren!
+            box = tk.Frame(
+                self.slots_frame,
+                bg="#f8fafc",
+                highlightthickness=1,
+                highlightbackground="#e2e8f0",
+                padx=8,
+                pady=8,
+                cursor="hand2",
+            )
+            box.grid(row=0, column=idx, sticky="nsew", padx=(pad_l, 0))
+
+            ico_plus = get_fluent_menu_icon_photo("plus", size=18)
+            lbl_p = tk.Label(box, image=ico_plus, bg="#f8fafc", cursor="hand2")
+            lbl_p.image = ico_plus
+            lbl_p.pack(pady=(2, 3))
+
+            lbl_t = tk.Label(box, text="Ordner fixieren", font=("Segoe UI", 8, "bold"), bg="#f8fafc", fg="#2563eb", cursor="hand2")
+            lbl_t.pack()
+
+            lbl_s = tk.Label(box, text="oder automatisch", font=("Segoe UI", 7), bg="#f8fafc", fg="#94a3b8", cursor="hand2")
+            lbl_s.pack(pady=(1, 0))
+
+            def _on_enter(_e=None, b=box, ws=(box, lbl_p, lbl_t, lbl_s)):
+                b.config(bg="#eff6ff", highlightbackground="#93c5fd")
+                for cw in ws:
+                    cw.config(bg="#eff6ff")
+
+            def _on_leave(_e=None, b=box, ws=(box, lbl_p, lbl_t, lbl_s)):
+                b.config(bg="#f8fafc", highlightbackground="#e2e8f0")
+                for cw in ws:
+                    cw.config(bg="#f8fafc")
+
+            for w in (box, lbl_p, lbl_t, lbl_s):
+                w.bind("<Enter>", _on_enter)
+                w.bind("<Leave>", _on_leave)
+                w.bind("<Button-1>", lambda _e: self._add_and_pin_new_slot())
+            attach_tooltip(box, "Klicken, um einen Wunschordner dauerhaft hier zu fixieren.\nSonst wird dieser Platz automatisch mit zuletzt genutzten Ordnern belegt.")
+            return
+
+        p = slot["path"]
+        lbl = slot.get("label") or os.path.basename(p.rstrip("\\/")) or p
+        pinned = bool(slot.get("pinned", False))
+        is_last = (idx == 0)
+
+        box = tk.Frame(
+            self.slots_frame,
             bg="#ffffff",
-            fg="#1e293b",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=12,
-            pady=5,
-            icon_kind="folder_adjacent",
-        ).pack(side="left", padx=(0, 6))
+            highlightthickness=1,
+            highlightbackground="#cbd5e1",
+            padx=9,
+            pady=7,
+            cursor="hand2",
+        )
+        box.grid(row=0, column=idx, sticky="nsew", padx=(pad_l, 0))
 
-        ModernRoundedButton(
-            custom_row,
-            text="USB_Stick",
-            command=self._pick_usb_stick_folder,
+        # Obere Zeile: Status-Badge links + Pin & Entfernen rechts
+        top_row = tk.Frame(box, bg="#ffffff")
+        top_row.pack(fill="x")
+
+        if is_last:
+            badge_bg, badge_fg, badge_txt = "#dbeafe", "#1d4ed8", "Zuletzt"
+        elif pinned:
+            badge_bg, badge_fg, badge_txt = "#fef3c7", "#b45309", "Fixiert"
+        else:
+            badge_bg, badge_fg, badge_txt = "#f1f5f9", "#64748b", "Verlauf"
+
+        lbl_badge = tk.Label(
+            top_row,
+            text=badge_txt,
+            font=("Segoe UI", 7, "bold"),
+            bg=badge_bg,
+            fg=badge_fg,
+            padx=5,
+            pady=1,
+        )
+        lbl_badge.pack(side="left")
+
+        ico_rm_norm = get_fluent_menu_icon_photo("cross", size=12)
+        ico_rm_hov = get_fluent_menu_icon_photo("cross_danger", size=12)
+        btn_rm = tk.Label(top_row, image=ico_rm_norm, bg="#ffffff", cursor="hand2", padx=2)
+        btn_rm.image = ico_rm_norm
+        btn_rm.pack(side="right", padx=(2, 0))
+        attach_tooltip(btn_rm, "Aus Schnellauswahl entfernen")
+        btn_rm.bind("<Enter>", lambda _e, b=btn_rm, im=ico_rm_hov: b.config(image=im))
+        btn_rm.bind("<Leave>", lambda _e, b=btn_rm, im=ico_rm_norm: b.config(image=im))
+
+        def _do_remove(_e=None, sp=p):
+            self._on_remove_slot(sp)
+            return "break"
+
+        btn_rm.bind("<Button-1>", _do_remove)
+
+        ico_pin = get_fluent_menu_icon_photo("pin" if pinned else "pin_outline", size=13)
+        pin_tip = "Fixiert – bleibt dauerhaft erhalten.\nKlicken zum Lösen" if pinned else "Nicht fixiert – aktualisiert sich automatisch.\nKlicken zum dauerhaften Fixieren"
+        btn_pin = tk.Label(top_row, image=ico_pin, bg="#ffffff", cursor="hand2", padx=2)
+        btn_pin.image = ico_pin
+        btn_pin.pack(side="right")
+        attach_tooltip(btn_pin, pin_tip)
+
+        def _do_pin(_e=None, sp=p):
+            self._on_toggle_pin(sp)
+            return "break"
+
+        btn_pin.bind("<Button-1>", _do_pin)
+
+        # Mittlere Zeile: Vektor-Icon + Ordnername
+        mid_row = tk.Frame(box, bg="#ffffff")
+        mid_row.pack(fill="x", pady=(6, 2))
+
+        ico_main = get_fluent_menu_icon_photo("usb" if self._is_drive_or_usb(p) else "folder", size=15)
+        lbl_ico = tk.Label(mid_row, image=ico_main, bg="#ffffff")
+        lbl_ico.image = ico_main
+        lbl_ico.pack(side="left", padx=(0, 5))
+
+        short_name = lbl if len(lbl) <= 15 else lbl[:13] + "…"
+        lbl_name = tk.Label(
+            mid_row,
+            text=short_name,
+            font=("Segoe UI", 9, "bold"),
             bg="#ffffff",
-            fg="#1e293b",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=12,
-            pady=5,
-            icon_kind="usb_stick",
-        ).pack(side="left")
+            fg="#0f172a",
+            anchor="w",
+        )
+        lbl_name.pack(side="left", fill="x", expand=True)
 
-        cat_row = tk.Frame(list_card, bg="#ffffff")
-        cat_row.pack(fill="x", pady=(6, 0))
-        tk.Label(cat_row, text="Kategorie:", width=9, anchor="w", font=("Segoe UI", 9), bg="#ffffff", fg="#475569").pack(side="left", padx=(0, 6))
-        self.ent_label = tk.Entry(cat_row, textvariable=self.label_var, width=28, font=("Segoe UI", 9), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
-        self.ent_label.pack(side="left", ipady=3)
-        tk.Label(cat_row, text="(7-Ordner-Kategorie oder freier Speicher-Ordner auf PC / USB)", font=("Segoe UI", 8), bg="#ffffff", fg="#64748b").pack(side="left", padx=(8, 0))
+        # Untere Zeile: Gekürzter Pfad
+        disp_p = p if len(p) <= 22 else p[:8] + "…" + p[-12:]
+        lbl_path = tk.Label(
+            box,
+            text=disp_p,
+            font=("Segoe UI", 8),
+            bg="#ffffff",
+            fg="#64748b",
+            anchor="w",
+        )
+        lbl_path.pack(fill="x")
+        attach_tooltip(lbl_path, p)
+        attach_tooltip(lbl_name, f"{lbl}\n{p}")
 
-        def _on_select(_e=None):
-            sel = self.tree.selection()
-            if sel and sel[0] in self._row_map:
-                t_val, l_val = self._row_map[sel[0]]
-                self.target_var.set(t_val)
-                self.label_var.set(l_val)
+        bg_widgets = (box, top_row, btn_pin, btn_rm, mid_row, lbl_ico, lbl_name, lbl_path)
+        state = {"selected": False}
 
-        self.tree.bind("<<TreeviewSelect>>", _on_select)
-        self.tree.bind("<Double-1>", lambda _e: self._on_confirm())
+        def _apply_bg(col: str, brd: str, th: int):
+            box.config(bg=col, highlightbackground=brd, highlightthickness=th)
+            for cw in bg_widgets[1:]:
+                cw.config(bg=col)
 
-        self.bind("<Escape>", lambda _e: self._on_close())
-        self.bind("<Return>", lambda _e: self._on_confirm())
-        self.protocol("WM_DELETE_WINDOW", self._on_close)
-        self.update_idletasks()
-        self.deiconify()
-        self.lift()
-        self.focus_set()
+        def _set_selected(sel: bool):
+            state["selected"] = sel
+            if sel:
+                _apply_bg("#eff6ff", "#2563eb", 2)
+            else:
+                _apply_bg("#ffffff", "#cbd5e1", 1)
+
+        def _on_enter(_e=None):
+            if not state["selected"]:
+                _apply_bg("#f8fafc", "#94a3b8", 1)
+
+        def _on_leave(_e=None):
+            if not state["selected"]:
+                _apply_bg("#ffffff", "#cbd5e1", 1)
+
+        def _select(_e=None):
+            self._updating_target_internally = True
+            self.target_var.set(os.path.normpath(p) if os.path.isabs(p) else p)
+            self.label_var.set(lbl)
+            self._updating_target_internally = False
+            self._sync_target_preview_ui()
+
+        def _confirm_now(_e=None):
+            _select()
+            self._on_confirm()
+
+        for w in (box, top_row, lbl_badge, mid_row, lbl_ico, lbl_name, lbl_path):
+            w.bind("<Enter>", _on_enter)
+            w.bind("<Leave>", _on_leave)
+            w.bind("<Button-1>", _select)
+            w.bind("<Double-Button-1>", _confirm_now)
+
+        self._slot_widgets.append({"path": p, "set_selected": _set_selected})
+
+    def _add_and_pin_new_slot(self):
+        init_dir = ""
+        if hasattr(self._parent_app, "target_dir"):
+            td = self._parent_app.target_dir.get().strip()
+            if td and os.path.isdir(td):
+                init_dir = td
+        chosen = filedialog.askdirectory(
+            parent=self,
+            initialdir=init_dir or os.path.expanduser("~"),
+            title="Ordner für Schnellauswahl wählen & dauerhaft fixieren",
+        )
+        if not chosen:
+            return
+        norm = os.path.normpath(chosen)
+        folder_name = os.path.basename(norm.rstrip("\\/")) or norm
+        self._parent_app.add_recent_target_folder(norm, pinned=True, label=folder_name, keep_slot1=True)
+        self._updating_target_internally = True
+        self.target_var.set(norm)
+        self.label_var.set(folder_name)
+        self._updating_target_internally = False
+        self._render_recent_slots()
+        self._sync_target_preview_ui()
+
+    def _pin_current_target(self):
+        raw_tgt = self.target_var.get().strip()
+        if not raw_tgt:
+            return
+        tgt = os.path.normpath(raw_tgt) if os.path.isabs(raw_tgt) else raw_tgt.replace("\\", "/")
+        lbl = self.label_var.get().strip() or os.path.basename(tgt.rstrip("/\\")) or tgt
+        self._parent_app.add_recent_target_folder(tgt, pinned=True, label=lbl, keep_slot1=True)
+        self._render_recent_slots()
+        self._sync_target_preview_ui()
+        try:
+            self.btn_pin_current.update_style(text="✓ Angepinnt", bg="#eff6ff", fg="#1d4ed8", border_color="#93c5fd")
+            self.after(
+                1200,
+                lambda: self.btn_pin_current.winfo_exists()
+                and self.btn_pin_current.update_style(text="📌 Anpinnen", bg="#ffffff", fg="#1e293b", border_color="#94a3b8"),
+            )
+        except Exception:
+            pass
+
+    def _on_toggle_pin(self, path: str):
+        self._parent_app.toggle_pin_recent_target(path)
+        self._render_recent_slots()
+
+    def _on_remove_slot(self, path: str):
+        if hasattr(self._parent_app, "remove_recent_target_folder"):
+            self._parent_app.remove_recent_target_folder(path)
+        self._render_recent_slots()
+
+    def _pick_main_target_folder(self):
+        main_t = self._parent_app.target_dir.get().strip() if hasattr(self._parent_app, "target_dir") else ""
+        if not main_t:
+            return
+        norm = os.path.normpath(main_t)
+        folder_name = os.path.basename(norm.rstrip("\\/")) or norm
+        self._updating_target_internally = True
+        self.target_var.set(norm)
+        self.label_var.set(folder_name)
+        self._updating_target_internally = False
+        self._sync_target_preview_ui()
 
     def _browse_custom_folder(self):
         cur = self.target_var.get().strip()
@@ -5523,21 +6711,28 @@ class TargetFolderDialog(tk.Toplevel):
         if not chosen:
             return
         norm = os.path.normpath(chosen)
+        folder_name = os.path.basename(norm.rstrip("\\/")) or norm
+        self._updating_target_internally = True
         self.target_var.set(norm)
-        folder_name = os.path.basename(norm) or norm
-        self.label_var.set(f"Eigener Ordner ({folder_name})")
+        self.label_var.set(folder_name)
+        self._updating_target_internally = False
+        self._sync_target_preview_ui()
 
     def _pick_usb_stick_folder(self):
         usb_dir = github_sync.find_usb_stick_data_dir()
         if not usb_dir:
             messagebox.showwarning(
-                "USB_Stick nicht gefunden",
+                "USB-Stick nicht gefunden",
                 "Kein eingesteckter USB-Stick mit Ordner 'USB_Stick' gefunden (E:, F:, G: ...).",
                 parent=self,
             )
             return
-        self.target_var.set(os.path.normpath(usb_dir))
+        norm = os.path.normpath(usb_dir)
+        self._updating_target_internally = True
+        self.target_var.set(norm)
         self.label_var.set("USB_Stick")
+        self._updating_target_internally = False
+        self._sync_target_preview_ui()
 
     def _on_confirm(self, execute_mode: str | None = None):
         raw_tgt = self.target_var.get().strip()
@@ -5551,8 +6746,10 @@ class TargetFolderDialog(tk.Toplevel):
             "save_rule": bool(self.save_rule_var.get()),
             "keyword": self.keyword_var.get().strip(),
             "apply_to_preview": bool(self.apply_preview_var.get()),
+            "apply_to_all": bool(self.apply_all_rows_var.get()),
             "execute_mode": execute_mode,
         }
+        self._parent_app.add_recent_target_folder(tgt, label=lbl)
         self._on_close()
 
     def _on_close(self):
@@ -5823,10 +7020,10 @@ class FolderPickerDialog(tk.Toplevel):
             text="⬆ Hoch",
             command=self._go_up,
             bg="#ffffff",
-            fg="#334155",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=6,
             padx=10,
             pady=4,
@@ -5849,10 +7046,10 @@ class FolderPickerDialog(tk.Toplevel):
             text="Öffnen",
             command=self._open_typed_path,
             bg="#ffffff",
-            fg="#334155",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=6,
             padx=10,
             pady=4,
@@ -5863,10 +7060,10 @@ class FolderPickerDialog(tk.Toplevel):
             text="+ Neuer Ordner",
             command=self._create_new_folder,
             bg="#ffffff",
-            fg="#334155",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=6,
             padx=10,
             pady=4,
@@ -5908,10 +7105,10 @@ class FolderPickerDialog(tk.Toplevel):
             text="Abbrechen",
             command=self._cancel,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=14,
             pady=6,
@@ -6281,10 +7478,10 @@ class FolderPickerDialog(tk.Toplevel):
             text="Schließen",
             command=dlg.destroy,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
             pady=5,
@@ -6336,8 +7533,8 @@ class FolderPickerDialog(tk.Toplevel):
                 self._navigate_to(Path(raw), sync_tree=False)
 
         ent.bind("<Return>", on_open)
-        ModernRoundedButton(btn_row, "Ordner öffnen", command=on_open, bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", font=("Segoe UI", 9), r=8, padx=14, pady=5).pack(side="right")
-        ModernRoundedButton(btn_row, "Abbrechen", command=dlg.destroy, bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9), r=8, padx=12, pady=5).pack(side="right", padx=(0, 8))
+        ModernRoundedButton(btn_row, "Ordner öffnen", command=on_open, bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", font=("Segoe UI", 9, "bold"), r=8, padx=14, pady=5).pack(side="right")
+        ModernRoundedButton(btn_row, "Abbrechen", command=dlg.destroy, bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"), r=8, padx=12, pady=5).pack(side="right", padx=(0, 8))
 
     def _add_dummy_child_if_has_dirs(self, node_id: str, path: Path):
         if node_id in self._tree_loaded:
@@ -6614,6 +7811,1269 @@ def ask_folder_with_files(parent, title: str, initialdir: str) -> str | None:
     return dlg.result
 
 
+# -------------------------------------------------------------
+# DATEINAMEN-EINKÜRZUNG & UMBENENNUNG (VARIANTE 1 & 3)
+# -------------------------------------------------------------
+def shorten_filename_subtitles(filename: str, max_dashes: int = 2) -> str:
+    """Entfernt Untertitel nach dem n-ten ' - ' oder ' – ' Trenner (z.B. Autor - Titel)."""
+    p = Path(filename)
+    stem = p.stem
+    ext = p.suffix
+    parts = re.split(r'\s+[-–—]\s+', stem)
+    if len(parts) > max_dashes:
+        new_stem = " - ".join(parts[:max_dashes]).strip()
+        new_stem = re.sub(r'[,;:\-–—\s]+$', '', new_stem).strip()
+        return f"{new_stem}{ext}"
+    return filename
+
+def shorten_filename_max_length(filename: str, max_chars: int = 50, break_on_word: bool = True) -> str:
+    """Begrenzt den Dateinamen auf max_chars Zeichen inklusive Dateiendung."""
+    if len(filename) <= max_chars:
+        return filename
+    p = Path(filename)
+    ext = p.suffix
+    stem = p.stem
+    allowed_stem_len = max_chars - len(ext)
+    if allowed_stem_len <= 3:
+        return filename[:max_chars]
+    truncated = stem[:allowed_stem_len]
+    if break_on_word:
+        last_space = max(truncated.rfind(' '), truncated.rfind('-'), truncated.rfind('_'))
+        if last_space >= allowed_stem_len // 2:
+            truncated = truncated[:last_space]
+    truncated = re.sub(r'[,;:\-–—\._\s]+$', '', truncated).strip()
+    return f"{truncated}{ext}"
+
+def clean_filename_underscores(filename: str) -> str:
+    """Ersetzt Unterstriche durch Leerzeichen und säubert doppelte Leerzeichen."""
+    p = Path(filename)
+    stem = p.stem
+    ext = p.suffix
+    new_stem = stem.replace('_', ' ')
+    new_stem = re.sub(r'\s+', ' ', new_stem).strip()
+    return f"{new_stem}{ext}"
+
+def clean_windows_filename(name: str) -> str:
+    r"""Entfernt unter Windows verbotene Dateinamen-Zeichen: \ / : * ? \" < > |"""
+    return re.sub(r'[\\/:*?"<>|]', '', name).strip()
+
+
+class SingleFileRenameDialog(tk.Toplevel):
+    """Eleganter Light-Fluent Dialog zum gezielten Umbenennen einer Datei (Taste F2 / Kontextmenü)."""
+    def __init__(self, parent, item: dict, on_success=None):
+        super().__init__(parent)
+        self.parent = parent
+        self.item = item
+        self.on_success = on_success
+
+        self.title("Dateiname bearbeiten")
+        self.configure(bg="#f8fafc")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.grab_set()
+
+        cur_name = str(item.get("name", ""))
+        self.orig_name = str(item.get("orig_name") or cur_name)
+        self.is_dir = bool(item.get("is_dir", False))
+        p = Path(cur_name)
+        self.file_ext = "" if self.is_dir else p.suffix
+        self.file_stem = cur_name if self.is_dir else p.stem
+        self.orig_stem = self.orig_name if self.is_dir else Path(self.orig_name).stem
+
+        self._build_ui()
+        self._center_dialog()
+
+    def _build_ui(self):
+        outer = tk.Frame(self, bg="#f8fafc", padx=22, pady=18)
+        outer.pack(fill="both", expand=True)
+
+        # Header mit Icon & Typographie
+        hdr_frame = tk.Frame(outer, bg="#f8fafc")
+        hdr_frame.pack(fill="x", pady=(0, 14))
+
+        icon_lbl = tk.Label(hdr_frame, text="✏️", font=("Segoe UI", 16), bg="#eff6ff", fg="#2563eb", width=3, height=1)
+        icon_lbl.pack(side="left", padx=(0, 12))
+
+        title_box = tk.Frame(hdr_frame, bg="#f8fafc")
+        title_box.pack(side="left", fill="x", expand=True)
+
+        tk.Label(title_box, text="Dateiname bearbeiten", font=("Segoe UI", 12, "bold"), bg="#f8fafc", fg="#0f172a").pack(anchor="w")
+        sub_text = f"Original: {self.orig_name} ({len(self.orig_name)} Zeichen)"
+        if len(sub_text) > 70:
+            sub_text = sub_text[:67] + "…"
+        tk.Label(title_box, text=sub_text, font=("Segoe UI", 8), bg="#f8fafc", fg="#64748b").pack(anchor="w")
+
+        # Weisse Karte fuer Eingabefeld & Live-Status
+        card = tk.Frame(outer, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1", padx=16, pady=14)
+        card.pack(fill="x", pady=(0, 14))
+
+        tk.Label(card, text="Neuer Dateiname (ohne Endung):", font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#334155").pack(anchor="w", pady=(0, 6))
+
+        # Eingabezeile mit getrenntem, geschütztem Endungs-Badge
+        self.var_stem = tk.StringVar(value=self.file_stem)
+        self.var_stem.trace_add("write", lambda *_a: self._on_stem_change())
+
+        ent_box = tk.Frame(card, bg="#ffffff", highlightthickness=1, highlightbackground="#94a3b8")
+        ent_box.pack(fill="x", pady=(0, 8))
+
+        self.entry = tk.Entry(
+            ent_box,
+            textvariable=self.var_stem,
+            font=("Segoe UI", 10),
+            bg="#ffffff",
+            fg="#0f172a",
+            relief="flat",
+            bd=0,
+            insertbackground="#2563eb"
+        )
+        self.entry.pack(side="left", fill="x", expand=True, padx=(8, 4), pady=6)
+
+        if self.file_ext:
+            self.lbl_ext_badge = tk.Label(
+                ent_box,
+                text=f" {self.file_ext} ",
+                font=("Segoe UI", 9, "bold"),
+                bg="#e2e8f0",
+                fg="#0f172a",
+                padx=6,
+                pady=2,
+                highlightthickness=1,
+                highlightbackground="#94a3b8"
+            )
+            self.lbl_ext_badge.pack(side="right", padx=(0, 6), pady=4)
+            attach_tooltip(self.lbl_ext_badge, f"Dateiendung ({self.file_ext}) bleibt automatisch geschützt und wird beim Speichern angehängt.")
+
+        # Fokus setzen und gesamten Text markieren
+        self.after(50, self._focus_entry)
+
+        # Statuszeile: Zeichenzaehler & Endungs-Hinweis
+        status_row = tk.Frame(card, bg="#ffffff")
+        status_row.pack(fill="x", pady=(0, 12))
+
+        self.lbl_counter = tk.Label(status_row, text="", font=("Segoe UI", 8), bg="#ffffff", fg="#64748b")
+        self.lbl_counter.pack(side="left")
+
+        # Schnellauswahl-Aktionen mit klaren, ansprechenden Buttons
+        chip_label_row = tk.Frame(card, bg="#ffffff")
+        chip_label_row.pack(fill="x", pady=(0, 6))
+        tk.Label(chip_label_row, text="Schnell-Aktionen (Klick passt den Namen sofort an):", font=("Segoe UI", 8, "bold"), bg="#ffffff", fg="#475569").pack(side="left")
+
+        chip_row = tk.Frame(card, bg="#ffffff")
+        chip_row.pack(fill="x")
+
+        chips = [
+            ("📖 Nur Autor & Titel", lambda: self._apply_quick_action("autor_titel"), "#eff6ff", "#1d4ed8", "#dbeafe", "#93c5fd", "Lange Untertitel entfernen: Behält nur Autor und Haupttitel"),
+            ("📚 Bis Serie / Band", lambda: self._apply_quick_action("serie_band"), "#f5f3ff", "#6d28d9", "#ede9fe", "#c4b5fd", "Behält Autor, Titel und Band- bzw. Reihenbezeichnung"),
+            ("📏 Max. 50 Zeichen", lambda: self._apply_quick_action("max_50"), "#fffbeb", "#b45309", "#fef3c7", "#fde68a", "Kürzt die Gesamtlänge wortgenau auf max. 50 Zeichen"),
+            ("🔤 Ohne Unterstriche", lambda: self._apply_quick_action("underscores"), "#f0fdfa", "#0f766e", "#ccfbf1", "#99f6e4", "Ersetzt alle Unterstriche „_“ durch saubere Leerzeichen"),
+            ("↺ Originalname", lambda: self._apply_quick_action("original"), "#ffffff", "#1e293b", "#f1f5f9", "#94a3b8", "Setzt den Namen auf den ursprünglichen Zustand zurück"),
+        ]
+        for c_txt, c_cmd, c_bg, c_fg, c_hbg, c_brd, c_tip in chips:
+            btn = ModernRoundedButton(
+                chip_row,
+                text=c_txt,
+                command=c_cmd,
+                bg=c_bg,
+                fg=c_fg,
+                hover_bg=c_hbg,
+                border_color=c_brd,
+                font=("Segoe UI", 9, "bold"),
+                r=8,
+                padx=10,
+                pady=5,
+            )
+            btn.pack(side="left", padx=(0, 6))
+            attach_tooltip(btn, c_tip)
+
+        # Bottom Button-Leiste
+        btn_row = tk.Frame(outer, bg="#f8fafc")
+        btn_row.pack(fill="x")
+
+        ModernRoundedButton(
+            btn_row,
+            text="Abbrechen",
+            command=self.destroy,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=16,
+            pady=6,
+        ).pack(side="right", padx=(6, 0))
+
+        ModernRoundedButton(
+            btn_row,
+            text="✓ Übernehmen",
+            command=self._apply_rename,
+            bg="#2563eb",
+            fg="#ffffff",
+            hover_bg="#1d4ed8",
+            border_color=None,
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=18,
+            pady=6,
+        ).pack(side="right")
+
+        self.bind("<Return>", lambda _e: (self._apply_rename(), "break")[1])
+        self.bind("<Escape>", lambda _e: (self.destroy(), "break")[1])
+
+        self._on_stem_change()
+
+    def _focus_entry(self):
+        try:
+            self.entry.focus_set()
+            self.entry.selection_range(0, tk.END)
+        except Exception:
+            pass
+
+    def _on_stem_change(self):
+        val = self.var_stem.get()
+        cur_len = len(val)
+        total_len = cur_len + len(self.file_ext)
+        orig_len = len(self.orig_name)
+        diff = total_len - orig_len
+
+        if diff < 0:
+            diff_str = f" ({diff} Zeichen kürzer)"
+            diff_fg = "#16a34a"
+        elif diff > 0:
+            diff_str = f" (+{diff} Zeichen länger)"
+            diff_fg = "#ea580c"
+        else:
+            diff_str = " (gleiche Länge)"
+            diff_fg = "#64748b"
+
+        ext_note = f"  •  🔒 Endung {self.file_ext} bleibt automatisch erhalten" if self.file_ext else ""
+        self.lbl_counter.config(
+            text=f"{total_len} Zeichen gesamt (Name: {cur_len}){ext_note}  • {diff_str}",
+            fg=diff_fg if diff != 0 else "#64748b"
+        )
+
+    def _apply_quick_action(self, action: str):
+        cur = self.var_stem.get()
+        if action == "autor_titel":
+            new_full = shorten_filename_subtitles(f"{cur}{self.file_ext}", 2)
+            new_val = Path(new_full).stem if self.file_ext else new_full
+        elif action == "serie_band":
+            new_full = shorten_filename_subtitles(f"{cur}{self.file_ext}", 3)
+            new_val = Path(new_full).stem if self.file_ext else new_full
+        elif action == "max_50":
+            new_full = shorten_filename_max_length(f"{cur}{self.file_ext}", 50, break_on_word=True)
+            new_val = Path(new_full).stem if self.file_ext else new_full
+        elif action == "underscores":
+            new_val = clean_filename_underscores(cur)
+        elif action == "original":
+            new_val = self.orig_stem
+        else:
+            return
+        self.var_stem.set(new_val)
+        self._focus_entry()
+
+    def _apply_rename(self):
+        raw_stem = self.var_stem.get().strip()
+        cleaned_stem = clean_windows_filename(raw_stem)
+        if not cleaned_stem:
+            messagebox.showwarning("Ungültiger Name", "Der Dateiname darf nicht leer sein.", parent=self)
+            return
+
+        # Falls der Benutzer versehentlich die Endung selbst mit eingetippt hat, abschneiden
+        if self.file_ext and cleaned_stem.lower().endswith(self.file_ext.lower()):
+            cleaned_stem = cleaned_stem[:-len(self.file_ext)].rstrip()
+
+        final_name = f"{cleaned_stem}{self.file_ext}" if self.file_ext else cleaned_stem
+
+        if callable(self.on_success):
+            self.on_success(final_name)
+        self.destroy()
+
+    def _center_dialog(self):
+        self.update_idletasks()
+        w = max(680, self.winfo_reqwidth())
+        h = max(310, self.winfo_reqheight())
+        px = self.parent.winfo_rootx()
+        py = self.parent.winfo_rooty()
+        pw = self.parent.winfo_width()
+        ph = self.parent.winfo_height()
+        x = max(50, px + (pw - w) // 2)
+        y = max(50, py + (ph - h) // 2)
+        self.geometry(f"{w}x{h}+{x}+{y}")
+
+
+def _get_shorten_badge_photo(size: int = 38) -> ImageTk.PhotoImage:
+    """Zeichnet ein scharfes 3x-Supersampling-Scheren-Badge im Light-Fluent-Stil."""
+    key = ("shorten_badge_v1", size, CURRENT_THEME_MODE)
+    if key in IMG_CACHE:
+        return IMG_CACHE[key]
+    scale = 3
+    s = size * scale
+    is_dark = (CURRENT_THEME_MODE == "dark")
+    bg_hex = "#172554" if is_dark else "#eff6ff"
+    brd_hex = "#2563eb" if is_dark else "#93c5fd"
+    fg_hex = "#60a5fa" if is_dark else "#2563eb"
+
+    img = Image.new("RGBA", (s, s), (0, 0, 0, 0))
+    d = ImageDraw.Draw(img)
+    r = 10 * scale
+    d.rounded_rectangle([scale, scale, s - scale - 1, s - scale - 1], radius=r, fill=bg_hex, outline=brd_hex, width=scale)
+
+    # Vektor-Schere exakt zentriert (Griffe links, gekreuzte Klingen rechts)
+    lw = max(2, int(2.2 * scale))
+    u = s / 38.0
+    # Zwei Griffringe links
+    d.ellipse([9 * u, 10 * u, 16 * u, 17 * u], outline=fg_hex, width=lw)
+    d.ellipse([9 * u, 21 * u, 16 * u, 28 * u], outline=fg_hex, width=lw)
+    # Gekreuzte Klingen nach rechts
+    d.line([15.2 * u, 14.8 * u, 28.5 * u, 24.5 * u], fill=fg_hex, width=lw)
+    d.line([15.2 * u, 23.2 * u, 28.5 * u, 13.5 * u], fill=fg_hex, width=lw)
+    # Schraube am Kreuzungspunkt
+    d.ellipse([19.8 * u, 17.8 * u, 22.2 * u, 20.2 * u], fill=fg_hex)
+
+    photo = ImageTk.PhotoImage(img.resize((size, size), Image.LANCZOS))
+    IMG_CACHE[key] = photo
+    return photo
+
+
+class CustomShortenDialog(tk.Toplevel):
+    """Moderner Light-Fluent Dialog zum Einkürzen von Dateinamen mit farblich getrennter Vorher/Nachher Live-Vorschau."""
+    def __init__(self, parent, target_rids: list[str]):
+        super().__init__(parent)
+        self.withdraw()
+        self.parent = parent
+        self.target_rids = [rid for rid in target_rids if rid in parent.preview_items and parent.preview_items[rid].get("action") != "Gelöscht"]
+        self._is_dark = (CURRENT_THEME_MODE == "dark")
+
+        # Klare Farbpalette mit deutlicher Trennung zwischen Hintergrund, Karten, Vorher/Nachher und Buttons vs. Anzeigen
+        if self._is_dark:
+            self.pal = {
+                "dlg_bg": "#0f172a",
+                "bar_bg": "#1e293b",
+                "card_bg": "#1e293b",
+                "card_hdr": "#0f172a",
+                "card_brd": "#475569",
+                "div": "#334155",
+                "txt": "#f1f5f9",
+                "muted": "#94a3b8",
+                "row_active": "#172554",
+                "accent": "#3b82f6",
+                "info_bg": "#0f172a",
+                "info_fg": "#cbd5e1",
+                "inp_bg": "#0f172a",
+                "inp_fg": "#f8fafc",
+                "inp_brd": "#475569",
+                "bef_hdr": "#1e293b",
+                "bef_hdr_fg": "#cbd5e1",
+                "bef_bg": "#172033",
+                "bef_bg_alt": "#131b2b",
+                "bef_fg": "#cbd5e1",
+                "aft_hdr": "#064e3b",
+                "aft_hdr_fg": "#a7f3d0",
+                "aft_bg": "#063b2c",
+                "aft_bg_alt": "#052e22",
+                "aft_fg": "#6ee7b7",
+                "same_bg": "#1e293b",
+                "same_fg": "#64748b",
+                "det_bef_bg": "#172033",
+                "det_bef_tag": "#334155",
+                "det_bef_tag_fg": "#e2e8f0",
+                "det_aft_bg": "#063b2c",
+                "det_aft_tag": "#065f46",
+                "det_aft_tag_fg": "#a7f3d0",
+                "delta_fg": "#34d399",
+                "sel_bar": "#60a5fa",
+                "btn_sec_bg": "#0f172a",
+                "btn_sec_fg": "#e2e8f0",
+                "btn_sec_hov": "#334155",
+                "btn_sec_brd": "#64748b",
+                "btn_opt_bg": "#0f172a",
+                "btn_opt_fg": "#93c5fd",
+                "btn_opt_hov": "#1e3a8a",
+                "btn_opt_brd": "#3b82f6",
+            }
+        else:
+            self.pal = {
+                "dlg_bg": "#e8edf4",
+                "bar_bg": "#ffffff",
+                "card_bg": "#ffffff",
+                "card_hdr": "#f1f5f9",
+                "card_brd": "#94a3b8",
+                "div": "#cbd5e1",
+                "txt": "#0f172a",
+                "muted": "#64748b",
+                "row_active": "#eff6ff",
+                "accent": "#2563eb",
+                "info_bg": "#f1f5f9",
+                "info_fg": "#334155",
+                "inp_bg": "#ffffff",
+                "inp_fg": "#0f172a",
+                "inp_brd": "#94a3b8",
+                "bef_hdr": "#e2e8f0",
+                "bef_hdr_fg": "#334155",
+                "bef_bg": "#f8fafc",
+                "bef_bg_alt": "#f1f5f9",
+                "bef_fg": "#475569",
+                "aft_hdr": "#d1fae5",
+                "aft_hdr_fg": "#065f46",
+                "aft_bg": "#ecfdf5",
+                "aft_bg_alt": "#e2faee",
+                "aft_fg": "#065f46",
+                "same_bg": "#ffffff",
+                "same_fg": "#94a3b8",
+                "det_bef_bg": "#f1f5f9",
+                "det_bef_tag": "#cbd5e1",
+                "det_bef_tag_fg": "#1e293b",
+                "det_aft_bg": "#ecfdf5",
+                "det_aft_tag": "#bbf7d0",
+                "det_aft_tag_fg": "#065f46",
+                "delta_fg": "#047857",
+                "sel_bar": "#2563eb",
+                "btn_sec_bg": "#f8fafc",
+                "btn_sec_fg": "#1e293b",
+                "btn_sec_hov": "#e2e8f0",
+                "btn_sec_brd": "#64748b",
+                "btn_opt_bg": "#ffffff",
+                "btn_opt_fg": "#1d4ed8",
+                "btn_opt_hov": "#dbeafe",
+                "btn_opt_brd": "#3b82f6",
+            }
+
+        self.title("Dateinamen einkürzen")
+        self.configure(bg=self.pal["dlg_bg"])
+        self.resizable(True, True)
+        self.minsize(780, 560)
+        self.transient(parent)
+        self.grab_set()
+        apply_window_folder_icon(self)
+
+        self.mode_var = tk.StringVar(value="subtitles")
+        self.dash_count_var = tk.StringVar(value="2")
+        self.max_chars_var = tk.StringVar(value="50")
+        self.word_boundary_var = tk.BooleanVar(value=True)
+        self.replace_find_var = tk.StringVar(value="")
+        self.replace_with_var = tk.StringVar(value="")
+        self.only_changed_var = tk.BooleanVar(value=False)
+
+        self._preview_rows_data = {}
+        self._row_sel_bars = {}
+        self._selected_row_id = None
+        self._last_changed_count = 0
+        self._preset_len_buttons = {}
+        self._option_row_widgets = {}
+        self._option_accents = {}
+
+        self._build_ui()
+        self._center_dialog()
+        self.deiconify()
+        self.lift()
+        self.focus_set()
+
+    def _safe_int(self, var: tk.StringVar, default: int, lo: int, hi: int) -> int:
+        try:
+            v = int(str(var.get()).strip())
+            return max(lo, min(hi, v))
+        except Exception:
+            return default
+
+    def _select_mode(self, mode: str):
+        if self.mode_var.get() != mode:
+            self.mode_var.set(mode)
+        self._update_option_highlights()
+        self._update_preview()
+
+    def _step_dash(self, delta: int):
+        cur = self._safe_int(self.dash_count_var, 2, 1, 10)
+        nxt = max(1, min(10, cur + delta))
+        self.dash_count_var.set(str(nxt))
+        self._select_mode("subtitles")
+
+    def _set_len_preset(self, val: int):
+        self.max_chars_var.set(str(val))
+        self._select_mode("max_len")
+
+    def _make_fluent_input(self, parent, text_var: tk.StringVar, placeholder: str, width_px: int = 175, on_focus=None, on_change=None):
+        """Erstellt ein klares Eingabefeld mit Overlay-Platzhalter und blauem Fokusrahmen."""
+        p = self.pal
+        box = tk.Frame(parent, bg=p["inp_bg"], highlightthickness=1, highlightbackground=p["inp_brd"], highlightcolor=p["accent"])
+        box.configure(width=width_px, height=30)
+        box.pack_propagate(False)
+
+        ent = tk.Entry(
+            box,
+            textvariable=text_var,
+            font=("Segoe UI", 9),
+            bg=p["inp_bg"],
+            fg=p["inp_fg"],
+            insertbackground=p["accent"],
+            bd=0,
+            highlightthickness=0,
+        )
+        ent.pack(fill="both", expand=True, padx=8, pady=4)
+
+        ph = tk.Label(box, text=placeholder, font=("Segoe UI", 9), bg=p["inp_bg"], fg=p["muted"], cursor="xterm")
+        ph.bind("<Button-1>", lambda _e: ent.focus_set())
+
+        def _sync_ph(*_a):
+            if text_var.get():
+                ph.place_forget()
+            else:
+                ph.place(x=8, rely=0.5, anchor="w")
+
+        def _on_in(_e=None):
+            box.configure(highlightbackground=p["accent"], highlightthickness=2)
+            if on_focus:
+                on_focus()
+
+        def _on_out(_e=None):
+            box.configure(highlightbackground=p["inp_brd"], highlightthickness=1)
+
+        def _on_key(_e=None):
+            _sync_ph()
+            if on_change:
+                on_change()
+
+        ent.bind("<FocusIn>", _on_in)
+        ent.bind("<FocusOut>", _on_out)
+        ent.bind("<KeyRelease>", _on_key)
+        text_var.trace_add("write", _sync_ph)
+        _sync_ph()
+        return box, ent
+
+    def _on_mousewheel(self, event):
+        try:
+            if hasattr(self, "prev_canvas") and self.prev_canvas.winfo_exists():
+                delta = -1 * int(event.delta / 120) if event.delta else 0
+                if delta:
+                    self.prev_canvas.yview_scroll(delta, "units")
+        except Exception:
+            pass
+
+    def _build_ui(self):
+        p = self.pal
+        cnt = len(self.target_rids)
+
+        # ── 1. KOPFLEISTE (volle Breite, klar abgesetzt) ──
+        hdr_bar = tk.Frame(self, bg=p["bar_bg"])
+        hdr_bar.pack(side="top", fill="x")
+        hdr = tk.Frame(hdr_bar, bg=p["bar_bg"], padx=20, pady=12)
+        hdr.pack(fill="x")
+
+        badge_img = _get_shorten_badge_photo(38)
+        lbl_ico = tk.Label(hdr, image=badge_img, bg=p["bar_bg"], bd=0)
+        lbl_ico.image = badge_img
+        lbl_ico.pack(side="left", padx=(0, 12))
+
+        title_box = tk.Frame(hdr, bg=p["bar_bg"])
+        title_box.pack(side="left", fill="x", expand=True)
+
+        tk.Label(
+            title_box,
+            text="Dateinamen einkürzen",
+            font=("Segoe UI", 13, "bold"),
+            bg=p["bar_bg"],
+            fg=p["txt"],
+            anchor="w",
+        ).pack(fill="x")
+        tk.Label(
+            title_box,
+            text="Kürzungsmethode wählen und das Ergebnis farblich getrennt in der Live-Vorschau prüfen.",
+            font=("Segoe UI", 9),
+            bg=p["bar_bg"],
+            fg=p["muted"],
+            anchor="w",
+        ).pack(fill="x")
+
+        # Reine Info-Anzeige (flach, ohne Button-Rahmen – klar als Anzeige erkennbar, NICHT als Button)
+        cnt_lbl = "Auswahl: 1 Datei" if cnt == 1 else f"Auswahl: {cnt} Dateien"
+        tk.Label(
+            hdr,
+            text=cnt_lbl,
+            font=("Segoe UI", 9),
+            bg=p["info_bg"],
+            fg=p["info_fg"],
+            padx=10,
+            pady=4,
+            bd=0,
+        ).pack(side="right", anchor="center")
+
+        tk.Frame(hdr_bar, bg=p["div"], height=1).pack(fill="x")
+
+        # ── 4. FUSSLEISTE ZUERST UNTEN VERANKERN (niemals abschneidbar, klar abgetrennt) ──
+        ftr_bar = tk.Frame(self, bg=p["bar_bg"])
+        ftr_bar.pack(side="bottom", fill="x")
+        tk.Frame(ftr_bar, bg=p["div"], height=1).pack(fill="x")
+
+        btn_row = tk.Frame(ftr_bar, bg=p["bar_bg"], padx=20, pady=12)
+        btn_row.pack(fill="x")
+
+        btn_h = 38
+        ModernRoundedButton(
+            btn_row,
+            text="Abbrechen",
+            command=self.destroy,
+            bg=p["btn_sec_bg"],
+            fg=p["btn_sec_fg"],
+            hover_bg=p["btn_sec_hov"],
+            border_color=p["btn_sec_brd"],
+            font=("Segoe UI", 9, "bold"),
+            r=10,
+            padx=20,
+            pady=8,
+            min_height=btn_h,
+        ).pack(side="left")
+
+        f_apply = tkfont.Font(font=("Segoe UI", 10, "bold"))
+        apply_min_w = f_apply.measure("Auf 999 Dateien anwenden ➔") + 44
+
+        self.btn_apply = ModernRoundedButton(
+            btn_row,
+            text=f"Auf {cnt} Dateien anwenden ➔",
+            command=self._apply_shortening,
+            bg="#2563eb",
+            fg="#ffffff",
+            hover_bg="#1d4ed8",
+            border_color=None,
+            font=("Segoe UI", 10, "bold"),
+            r=10,
+            padx=22,
+            pady=8,
+            min_width=apply_min_w,
+            min_height=btn_h,
+        )
+        self.btn_apply.pack(side="right")
+
+        # ── HAUPTBEREICH AUF KÜHLEM HINTERGRUND (Karten heben sich deutlich ab) ──
+        body = tk.Frame(self, bg=p["dlg_bg"], padx=18, pady=14)
+        body.pack(fill="both", expand=True)
+
+        # ── 2. BEREICH: KARTE "1. KÜRZUNGSMETHODE WÄHLEN" ──
+        card = tk.Frame(body, bg=p["card_bg"], highlightthickness=1, highlightbackground=p["card_brd"])
+        card.pack(side="top", fill="x", pady=(0, 12))
+
+        card_hdr = tk.Frame(card, bg=p["card_hdr"], padx=14, pady=7)
+        card_hdr.pack(fill="x")
+        tk.Label(
+            card_hdr,
+            text="1. Kürzungsmethode wählen",
+            font=("Segoe UI", 9, "bold"),
+            bg=p["card_hdr"],
+            fg=p["txt"],
+        ).pack(side="left")
+        tk.Label(
+            card_hdr,
+            text="Aktive Regel ist blau markiert",
+            font=("Segoe UI", 8),
+            bg=p["card_hdr"],
+            fg=p["muted"],
+        ).pack(side="right")
+        tk.Frame(card, bg=p["div"], height=1).pack(fill="x")
+
+        def _make_option_row(mode_key: str):
+            wrap = tk.Frame(card, bg=p["card_bg"])
+            wrap.pack(fill="x")
+            accent = tk.Frame(wrap, bg=p["card_bg"], width=4)
+            accent.pack(side="left", fill="y")
+            inner = tk.Frame(wrap, bg=p["card_bg"], padx=12, pady=7)
+            inner.pack(side="left", fill="x", expand=True)
+            self._option_accents[mode_key] = accent
+            self._option_row_widgets[mode_key] = [wrap, inner]
+            return inner
+
+        # Option 1: Autor & Haupttitel
+        r1 = _make_option_row("subtitles")
+        rb1 = tk.Radiobutton(
+            r1,
+            text="Autor & Haupttitel behalten",
+            variable=self.mode_var,
+            value="subtitles",
+            font=("Segoe UI", 9, "bold"),
+            bg=p["card_bg"],
+            activebackground=p["row_active"],
+            selectcolor=p["card_bg"],
+            fg=p["txt"],
+            cursor="hand2",
+            command=lambda: self._select_mode("subtitles"),
+        )
+        rb1.pack(side="left")
+        lbl_r1_hint = tk.Label(r1, text="Untertitel nach Bindestrich entfernen", font=("Segoe UI", 8), bg=p["card_bg"], fg=p["muted"])
+        lbl_r1_hint.pack(side="left", padx=(6, 12))
+
+        step_grp = tk.Frame(r1, bg=p["card_bg"])
+        step_grp.pack(side="right")
+        lbl_nach = tk.Label(step_grp, text="Nach dem", font=("Segoe UI", 9), bg=p["card_bg"], fg=p["muted"])
+        lbl_nach.pack(side="left", padx=(0, 6))
+
+        ModernRoundedButton(
+            step_grp, text="−", command=lambda: self._step_dash(-1),
+            bg=p["btn_opt_bg"], fg=p["btn_opt_fg"], hover_bg=p["btn_opt_hov"], border_color=p["btn_opt_brd"],
+            font=("Segoe UI", 9, "bold"), r=6, padx=7, pady=2, min_width=28, min_height=26,
+        ).pack(side="left")
+
+        dash_box = tk.Frame(step_grp, bg=p["inp_bg"], highlightthickness=1, highlightbackground=p["inp_brd"], width=38, height=26)
+        dash_box.pack_propagate(False)
+        dash_box.pack(side="left", padx=4)
+        ent_dash = tk.Entry(
+            dash_box, textvariable=self.dash_count_var, font=("Segoe UI", 9, "bold"),
+            bg=p["inp_bg"], fg=p["inp_fg"], insertbackground=p["accent"], justify="center", bd=0, highlightthickness=0,
+        )
+        ent_dash.pack(fill="both", expand=True)
+        ent_dash.bind("<FocusIn>", lambda _e: (dash_box.configure(highlightbackground=p["accent"], highlightthickness=2), self._select_mode("subtitles")))
+        ent_dash.bind("<FocusOut>", lambda _e: dash_box.configure(highlightbackground=p["inp_brd"], highlightthickness=1))
+        ent_dash.bind("<KeyRelease>", lambda _e: self._select_mode("subtitles"))
+
+        ModernRoundedButton(
+            step_grp, text="+", command=lambda: self._step_dash(1),
+            bg=p["btn_opt_bg"], fg=p["btn_opt_fg"], hover_bg=p["btn_opt_hov"], border_color=p["btn_opt_brd"],
+            font=("Segoe UI", 9, "bold"), r=6, padx=7, pady=2, min_width=28, min_height=26,
+        ).pack(side="left")
+        lbl_trenner = tk.Label(step_grp, text=". Trenner", font=("Segoe UI", 9), bg=p["card_bg"], fg=p["muted"])
+        lbl_trenner.pack(side="left", padx=(6, 0))
+        self._option_row_widgets["subtitles"].extend([rb1, lbl_r1_hint, step_grp, lbl_nach, lbl_trenner])
+
+        tk.Frame(card, bg=p["div"], height=1).pack(fill="x")
+
+        # Option 2: Maximale Gesamtlänge
+        r2 = _make_option_row("max_len")
+        rb2 = tk.Radiobutton(
+            r2,
+            text="Maximale Länge begrenzen",
+            variable=self.mode_var,
+            value="max_len",
+            font=("Segoe UI", 9, "bold"),
+            bg=p["card_bg"],
+            activebackground=p["row_active"],
+            selectcolor=p["card_bg"],
+            fg=p["txt"],
+            cursor="hand2",
+            command=lambda: self._select_mode("max_len"),
+        )
+        rb2.pack(side="left")
+
+        len_grp = tk.Frame(r2, bg=p["card_bg"])
+        len_grp.pack(side="right")
+
+        for preset in (40, 50, 60, 80):
+            p_btn = ModernRoundedButton(
+                len_grp,
+                text=str(preset),
+                command=lambda v=preset: self._set_len_preset(v),
+                bg=p["btn_opt_bg"],
+                fg=p["btn_opt_fg"],
+                hover_bg=p["btn_opt_hov"],
+                border_color=p["btn_opt_brd"],
+                font=("Segoe UI", 8, "bold"),
+                r=6,
+                padx=8,
+                pady=2,
+                min_width=34,
+                min_height=26,
+            )
+            p_btn.pack(side="left", padx=(0, 4))
+            self._preset_len_buttons[preset] = p_btn
+
+        len_box = tk.Frame(len_grp, bg=p["inp_bg"], highlightthickness=1, highlightbackground=p["inp_brd"], width=48, height=26)
+        len_box.pack_propagate(False)
+        len_box.pack(side="left", padx=(4, 4))
+        ent_len = tk.Entry(
+            len_box, textvariable=self.max_chars_var, font=("Segoe UI", 9, "bold"),
+            bg=p["inp_bg"], fg=p["inp_fg"], insertbackground=p["accent"], justify="center", bd=0, highlightthickness=0,
+        )
+        ent_len.pack(fill="both", expand=True)
+        ent_len.bind("<FocusIn>", lambda _e: (len_box.configure(highlightbackground=p["accent"], highlightthickness=2), self._select_mode("max_len")))
+        ent_len.bind("<FocusOut>", lambda _e: len_box.configure(highlightbackground=p["inp_brd"], highlightthickness=1))
+        ent_len.bind("<KeyRelease>", lambda _e: self._select_mode("max_len"))
+
+        lbl_z = tk.Label(len_grp, text="Zeichen", font=("Segoe UI", 9), bg=p["card_bg"], fg=p["muted"])
+        lbl_z.pack(side="left", padx=(0, 10))
+        cb_wb = tk.Checkbutton(
+            len_grp,
+            text="Ganze Wörter erhalten",
+            variable=self.word_boundary_var,
+            bg=p["card_bg"],
+            activebackground=p["row_active"],
+            selectcolor=p["card_bg"],
+            fg=p["txt"],
+            font=("Segoe UI", 9),
+            cursor="hand2",
+            command=lambda: self._select_mode("max_len"),
+        )
+        cb_wb.pack(side="left")
+        self._option_row_widgets["max_len"].extend([rb2, len_grp, lbl_z, cb_wb])
+
+        tk.Frame(card, bg=p["div"], height=1).pack(fill="x")
+
+        # Option 3: Unterstriche ersetzen
+        r3 = _make_option_row("clean_underscores")
+        rb3 = tk.Radiobutton(
+            r3,
+            text="Unterstriche „_“ durch Leerzeichen ersetzen",
+            variable=self.mode_var,
+            value="clean_underscores",
+            font=("Segoe UI", 9, "bold"),
+            bg=p["card_bg"],
+            activebackground=p["row_active"],
+            selectcolor=p["card_bg"],
+            fg=p["txt"],
+            cursor="hand2",
+            command=lambda: self._select_mode("clean_underscores"),
+        )
+        rb3.pack(side="left")
+        self._option_row_widgets["clean_underscores"].append(rb3)
+
+        tk.Frame(card, bg=p["div"], height=1).pack(fill="x")
+
+        # Option 4: Textteil suchen & ersetzen
+        r4 = _make_option_row("replace")
+        rb4 = tk.Radiobutton(
+            r4,
+            text="Textteil suchen & ersetzen",
+            variable=self.mode_var,
+            value="replace",
+            font=("Segoe UI", 9, "bold"),
+            bg=p["card_bg"],
+            activebackground=p["row_active"],
+            selectcolor=p["card_bg"],
+            fg=p["txt"],
+            cursor="hand2",
+            command=lambda: self._select_mode("replace"),
+        )
+        rb4.pack(side="left")
+
+        rep_grp = tk.Frame(r4, bg=p["card_bg"])
+        rep_grp.pack(side="right")
+
+        lbl_find = tk.Label(rep_grp, text="Suchen:", font=("Segoe UI", 9), bg=p["card_bg"], fg=p["muted"])
+        lbl_find.pack(side="left", padx=(0, 6))
+        box_find, _ = self._make_fluent_input(
+            rep_grp,
+            self.replace_find_var,
+            "z. B. _Kopie",
+            width_px=165,
+            on_focus=lambda: self._select_mode("replace"),
+            on_change=lambda: self._select_mode("replace"),
+        )
+        box_find.pack(side="left", padx=(0, 12))
+
+        lbl_rep = tk.Label(rep_grp, text="Ersetzen:", font=("Segoe UI", 9), bg=p["card_bg"], fg=p["muted"])
+        lbl_rep.pack(side="left", padx=(0, 6))
+        box_rep, _ = self._make_fluent_input(
+            rep_grp,
+            self.replace_with_var,
+            "leer = entfernen",
+            width_px=165,
+            on_focus=lambda: self._select_mode("replace"),
+            on_change=lambda: self._select_mode("replace"),
+        )
+        box_rep.pack(side="left")
+        self._option_row_widgets["replace"].extend([rb4, rep_grp, lbl_find, lbl_rep])
+
+        # ── 3. BEREICH: KARTE "2. LIVE-VORSCHAU" (FARBLICH GETRENNT VORHER ➔ NACHHER) ──
+        prev_card = tk.Frame(body, bg=p["card_bg"], highlightthickness=1, highlightbackground=p["card_brd"])
+        prev_card.pack(fill="both", expand=True)
+
+        prev_hdr = tk.Frame(prev_card, bg=p["card_hdr"], padx=14, pady=7)
+        prev_hdr.pack(side="top", fill="x")
+
+        tk.Label(
+            prev_hdr,
+            text="2. Live-Vorschau",
+            font=("Segoe UI", 9, "bold"),
+            bg=p["card_hdr"],
+            fg=p["txt"],
+        ).pack(side="left")
+
+        # Flacher Status-Text ohne Button-Rahmen – eindeutig eine Anzeige!
+        self.lbl_prev_status = tk.Label(
+            prev_hdr,
+            text="",
+            font=("Segoe UI", 9, "bold"),
+            bg=p["card_hdr"],
+            fg=p["delta_fg"],
+        )
+        self.lbl_prev_status.pack(side="left", padx=(12, 0))
+
+        tk.Checkbutton(
+            prev_hdr,
+            text="Nur geänderte anzeigen",
+            variable=self.only_changed_var,
+            bg=p["card_hdr"],
+            activebackground=p["card_hdr"],
+            selectcolor=p["card_bg"],
+            fg=p["txt"],
+            font=("Segoe UI", 9),
+            cursor="hand2",
+            command=self._update_preview,
+        ).pack(side="right")
+
+        tk.Frame(prev_card, bg=p["div"], height=1).pack(side="top", fill="x")
+
+        # Volltext-Detailbereich unten fest verankern – Vorher (Grau) & Nachher (Grün) klar getrennt!
+        det_wrap = tk.Frame(prev_card, bg=p["card_bg"], padx=12, pady=10)
+        det_wrap.pack(side="bottom", fill="x")
+
+        det_box = tk.Frame(det_wrap, bg=p["card_bg"], highlightthickness=1, highlightbackground=p["div"])
+        det_box.pack(fill="x")
+
+        d_row1 = tk.Frame(det_box, bg=p["det_bef_bg"], padx=8, pady=5)
+        d_row1.pack(fill="x")
+        tk.Label(
+            d_row1, text="VORHER", font=("Segoe UI", 7, "bold"),
+            bg=p["det_bef_tag"], fg=p["det_bef_tag_fg"], width=9, anchor="center", pady=1,
+        ).pack(side="left", padx=(0, 8))
+        self.lbl_det_before = tk.Label(d_row1, text="—", font=("Segoe UI", 8), bg=p["det_bef_bg"], fg=p["bef_fg"], anchor="w")
+        self.lbl_det_before.pack(side="left", fill="x", expand=True)
+
+        tk.Frame(det_box, bg=p["div"], height=1).pack(fill="x")
+
+        d_row2 = tk.Frame(det_box, bg=p["det_aft_bg"], padx=8, pady=5)
+        d_row2.pack(fill="x")
+        tk.Label(
+            d_row2, text="NACHHER", font=("Segoe UI", 7, "bold"),
+            bg=p["det_aft_tag"], fg=p["det_aft_tag_fg"], width=9, anchor="center", pady=1,
+        ).pack(side="left", padx=(0, 8))
+        self.lbl_det_after = tk.Label(d_row2, text="—", font=("Segoe UI", 8, "bold"), bg=p["det_aft_bg"], fg=p["aft_fg"], anchor="w")
+        self.lbl_det_after.pack(side="left", fill="x", expand=True)
+
+        # Farblich getrennte Vorher / Nachher Tabelle (Header + scrollbarer Canvas)
+        tbl_outer = tk.Frame(prev_card, bg=p["card_bg"], padx=12, pady=(10, 0))
+        tbl_outer.pack(fill="both", expand=True)
+
+        tbl_box = tk.Frame(tbl_outer, bg=p["card_bg"], highlightthickness=1, highlightbackground=p["div"])
+        tbl_box.pack(fill="both", expand=True)
+
+        # Fixierter 2-Farben-Spaltenkopf
+        tbl_hdr = tk.Frame(tbl_box, bg=p["bef_hdr"])
+        tbl_hdr.pack(side="top", fill="x")
+        tbl_hdr.columnconfigure(0, weight=5, uniform="pvcol")
+        tbl_hdr.columnconfigure(1, weight=0, minsize=28)
+        tbl_hdr.columnconfigure(2, weight=5, uniform="pvcol")
+        tbl_hdr.columnconfigure(3, weight=0, minsize=100)
+        tbl_hdr.columnconfigure(4, weight=0, minsize=17)  # Platzhalter für Scrollbar
+
+        tk.Label(
+            tbl_hdr, text="Vorher", font=("Segoe UI", 9, "bold"),
+            bg=p["bef_hdr"], fg=p["bef_hdr_fg"], anchor="w", padx=10, pady=6,
+        ).grid(row=0, column=0, sticky="nsew")
+        tk.Label(
+            tbl_hdr, text="➔", font=("Segoe UI", 9, "bold"),
+            bg=p["bef_hdr"], fg=p["muted"], anchor="center", pady=6,
+        ).grid(row=0, column=1, sticky="nsew")
+        tk.Label(
+            tbl_hdr, text="Nachher", font=("Segoe UI", 9, "bold"),
+            bg=p["aft_hdr"], fg=p["aft_hdr_fg"], anchor="w", padx=10, pady=6,
+        ).grid(row=0, column=2, sticky="nsew")
+        tk.Label(
+            tbl_hdr, text="Änderung", font=("Segoe UI", 9, "bold"),
+            bg=p["bef_hdr"], fg=p["bef_hdr_fg"], anchor="center", padx=6, pady=6,
+        ).grid(row=0, column=3, sticky="nsew")
+        tk.Frame(tbl_hdr, bg=p["bef_hdr"], width=17).grid(row=0, column=4, sticky="nsew")
+
+        tk.Frame(tbl_box, bg=p["div"], height=1).pack(side="top", fill="x")
+
+        # Scrollbereich für Zeilen
+        sc_area = tk.Frame(tbl_box, bg=p["card_bg"])
+        sc_area.pack(fill="both", expand=True)
+
+        self.prev_canvas = tk.Canvas(sc_area, bg=p["card_bg"], bd=0, highlightthickness=0, height=185)
+        v_sb = ttk.Scrollbar(sc_area, orient="vertical", command=self.prev_canvas.yview)
+        self.prev_canvas.configure(yscrollcommand=v_sb.set)
+        v_sb.pack(side="right", fill="y")
+        self.prev_canvas.pack(side="left", fill="both", expand=True)
+
+        self.prev_inner = tk.Frame(self.prev_canvas, bg=p["card_bg"])
+        self._prev_win_id = self.prev_canvas.create_window((0, 0), window=self.prev_inner, anchor="nw")
+
+        self.prev_inner.bind("<Configure>", lambda _e: self.prev_canvas.configure(scrollregion=self.prev_canvas.bbox("all")))
+        self.prev_canvas.bind("<Configure>", lambda e: self.prev_canvas.itemconfigure(self._prev_win_id, width=e.width))
+        self.prev_canvas.bind("<MouseWheel>", self._on_mousewheel)
+        self.prev_inner.bind("<MouseWheel>", self._on_mousewheel)
+
+        self.bind("<Return>", lambda _e: (self._apply_shortening(), "break")[1])
+        self.bind("<Escape>", lambda _e: (self.destroy(), "break")[1])
+
+        self._update_option_highlights()
+        self._update_preview()
+
+    def _update_option_highlights(self):
+        p = self.pal
+        cur_mode = self.mode_var.get()
+        for m_key, accent in self._option_accents.items():
+            is_sel = (m_key == cur_mode)
+            row_bg = p["row_active"] if is_sel else p["card_bg"]
+            accent.configure(bg=p["accent"] if is_sel else p["card_bg"])
+            for w in self._option_row_widgets.get(m_key, []):
+                try:
+                    w.configure(bg=row_bg)
+                    if isinstance(w, (tk.Radiobutton, tk.Checkbutton)):
+                        w.configure(activebackground=row_bg)
+                except Exception:
+                    pass
+
+        cur_len = self._safe_int(self.max_chars_var, 50, 10, 250)
+        for preset, p_btn in self._preset_len_buttons.items():
+            is_active = (cur_mode == "max_len" and cur_len == preset)
+            if is_active:
+                p_btn.update_style(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None)
+            else:
+                p_btn.update_style(bg=p["btn_opt_bg"], fg=p["btn_opt_fg"], hover_bg=p["btn_opt_hov"], border_color=p["btn_opt_brd"])
+
+    def _compute_shortened(self, name: str, is_dir: bool = False) -> str:
+        mode = self.mode_var.get()
+        if mode == "subtitles":
+            d = self._safe_int(self.dash_count_var, 2, 1, 10)
+            new_name = shorten_filename_subtitles(name, d)
+        elif mode == "max_len":
+            m = self._safe_int(self.max_chars_var, 50, 10, 250)
+            wb = self.word_boundary_var.get()
+            new_name = shorten_filename_max_length(name, m, break_on_word=wb)
+        elif mode == "clean_underscores":
+            new_name = clean_filename_underscores(name)
+        elif mode == "replace":
+            f = self.replace_find_var.get()
+            w = self.replace_with_var.get()
+            new_name = name.replace(f, w) if f else name
+        else:
+            new_name = name
+
+        cleaned = clean_windows_filename(new_name)
+        if not is_dir:
+            ext = Path(name).suffix
+            if ext and not cleaned.lower().endswith(ext.lower()):
+                cleaned += ext
+        return cleaned if cleaned else name
+
+    def _select_preview_row(self, row_id: str):
+        p = self.pal
+        prev_id = self._selected_row_id
+        if prev_id and prev_id in self._row_sel_bars:
+            bar, orig_bg = self._row_sel_bars[prev_id]
+            try:
+                bar.configure(bg=orig_bg)
+            except Exception:
+                pass
+        self._selected_row_id = row_id
+        if row_id in self._row_sel_bars:
+            bar, _orig_bg = self._row_sel_bars[row_id]
+            try:
+                bar.configure(bg=p["sel_bar"])
+            except Exception:
+                pass
+        data = self._preview_rows_data.get(row_id)
+        if data:
+            cur, new = data
+            self.lbl_det_before.config(text=cur)
+            self.lbl_det_after.config(text=new, fg=p["aft_fg"] if new != cur else p["same_fg"])
+
+    def _update_preview(self):
+        p = self.pal
+        self._update_option_highlights()
+        for child in self.prev_inner.winfo_children():
+            child.destroy()
+        self._preview_rows_data.clear()
+        self._row_sel_bars.clear()
+        self._selected_row_id = None
+
+        total_cnt = 0
+        changed_cnt = 0
+        rows_to_render = []
+        only_changed = bool(self.only_changed_var.get())
+
+        for rid in self.target_rids:
+            it = self.parent.preview_items.get(rid)
+            if not it or it.get("action") == "Gelöscht":
+                continue
+            total_cnt += 1
+            cur = it.get("name", "")
+            new = self._compute_shortened(cur, is_dir=bool(it.get("is_dir", False)))
+            is_changed = (new != cur)
+            if is_changed:
+                changed_cnt += 1
+            if only_changed and not is_changed:
+                continue
+            rows_to_render.append((rid, cur, new, is_changed))
+
+        self._last_changed_count = changed_cnt
+
+        # Status-Text (flach, klar als Anzeige erkennbar) & Primär-Button aktualisieren
+        if changed_cnt > 0:
+            self.lbl_prev_status.config(
+                text=f"●  {changed_cnt} von {total_cnt} werden geändert",
+                fg=p["delta_fg"],
+            )
+            lbl_btn = "Auf 1 Datei anwenden ➔" if changed_cnt == 1 else f"Auf {changed_cnt} Dateien anwenden ➔"
+            self.btn_apply.update_style(
+                text=lbl_btn,
+                bg="#2563eb",
+                fg="#ffffff",
+                hover_bg="#1d4ed8",
+                border_color=None,
+            )
+        else:
+            self.lbl_prev_status.config(
+                text=f"●  0 von {total_cnt} geändert",
+                fg=p["muted"],
+            )
+            self.btn_apply.update_style(
+                text="Keine Änderungen",
+                bg="#e2e8f0" if not self._is_dark else "#334155",
+                fg="#64748b" if not self._is_dark else "#94a3b8",
+                hover_bg="#e2e8f0" if not self._is_dark else "#334155",
+                border_color="#cbd5e1" if not self._is_dark else "#475569",
+            )
+
+        max_render = 150
+        first_changed_id = None
+        first_any_id = None
+
+        for idx, (rid, cur, new, is_changed) in enumerate(rows_to_render[:max_render]):
+            row_id = f"r_{idx}"
+            self._preview_rows_data[row_id] = (cur, new)
+            if first_any_id is None:
+                first_any_id = row_id
+            if is_changed and first_changed_id is None:
+                first_changed_id = row_id
+
+            diff = len(new) - len(cur)
+            if not is_changed:
+                delta_str = "Unverändert"
+            elif diff < 0:
+                delta_str = f"{diff} Zeichen"
+            elif diff > 0:
+                delta_str = f"+{diff} Zeichen"
+            else:
+                delta_str = "Geändert"
+
+            if is_changed:
+                bg_bef = p["bef_bg"] if idx % 2 == 0 else p["bef_bg_alt"]
+                fg_bef = p["bef_fg"]
+                bg_aft = p["aft_bg"] if idx % 2 == 0 else p["aft_bg_alt"]
+                fg_aft = p["aft_fg"]
+                arrow_ch = "➔"
+                arrow_fg = p["delta_fg"]
+                fg_delta = p["delta_fg"]
+                aft_font = ("Segoe UI", 9, "bold")
+                del_font = ("Segoe UI", 8, "bold")
+            else:
+                bg_bef = p["same_bg"]
+                fg_bef = p["same_fg"]
+                bg_aft = p["same_bg"]
+                fg_aft = p["same_fg"]
+                arrow_ch = "="
+                arrow_fg = p["div"]
+                fg_delta = p["same_fg"]
+                aft_font = ("Segoe UI", 9)
+                del_font = ("Segoe UI", 8)
+
+            row_f = tk.Frame(self.prev_inner, bg=bg_bef, cursor="hand2")
+            row_f.pack(fill="x")
+            row_f.columnconfigure(0, weight=5, uniform="pvcol")
+            row_f.columnconfigure(1, weight=0, minsize=28)
+            row_f.columnconfigure(2, weight=5, uniform="pvcol")
+            row_f.columnconfigure(3, weight=0, minsize=100)
+
+            # Spalte 0: Vorher (mit linkem Auswahl-Indikator)
+            c0 = tk.Frame(row_f, bg=bg_bef)
+            c0.grid(row=0, column=0, sticky="nsew")
+            sel_bar = tk.Frame(c0, bg=bg_bef, width=3)
+            sel_bar.pack(side="left", fill="y")
+            self._row_sel_bars[row_id] = (sel_bar, bg_bef)
+            lbl_b = tk.Label(c0, text=cur, font=("Segoe UI", 9), bg=bg_bef, fg=fg_bef, anchor="w", width=1, padx=7, pady=4)
+            lbl_b.pack(side="left", fill="both", expand=True)
+
+            # Spalte 1: Deutliche Trennspalte mit Pfeil
+            c1 = tk.Frame(row_f, bg=bg_bef)
+            c1.grid(row=0, column=1, sticky="nsew")
+            tk.Frame(c1, bg=p["div"], width=1).pack(side="left", fill="y")
+            lbl_ar = tk.Label(c1, text=arrow_ch, font=("Segoe UI", 9, "bold"), bg=bg_bef, fg=arrow_fg, anchor="center")
+            lbl_ar.pack(side="left", fill="both", expand=True)
+            tk.Frame(c1, bg=p["div"], width=1).pack(side="right", fill="y")
+
+            # Spalte 2: Nachher (farblich klar abgesetzt in Grün bei Änderung)
+            lbl_a = tk.Label(row_f, text=new, font=aft_font, bg=bg_aft, fg=fg_aft, anchor="w", width=1, padx=10, pady=4)
+            lbl_a.grid(row=0, column=2, sticky="nsew")
+
+            # Spalte 3: Änderung (Zeichen-Differenz)
+            c3 = tk.Frame(row_f, bg=bg_bef)
+            c3.grid(row=0, column=3, sticky="nsew")
+            tk.Frame(c3, bg=p["div"], width=1).pack(side="left", fill="y")
+            lbl_d = tk.Label(c3, text=delta_str, font=del_font, bg=bg_bef, fg=fg_delta, anchor="center", padx=6, pady=4)
+            lbl_d.pack(side="left", fill="both", expand=True)
+
+            tk.Frame(self.prev_inner, bg=p["div"], height=1).pack(fill="x")
+
+            for w in (row_f, c0, sel_bar, lbl_b, c1, lbl_ar, lbl_a, c3, lbl_d):
+                w.bind("<Button-1>", lambda _e, rid_key=row_id: self._select_preview_row(rid_key))
+                w.bind("<MouseWheel>", self._on_mousewheel)
+
+        if len(rows_to_render) > max_render:
+            more_lbl = tk.Label(
+                self.prev_inner,
+                text=f"… und {len(rows_to_render) - max_render} weitere Einträge (Anwenden gilt für alle {changed_cnt} geänderten Dateien)",
+                font=("Segoe UI", 8),
+                bg=p["card_hdr"],
+                fg=p["muted"],
+                pady=6,
+            )
+            more_lbl.pack(fill="x")
+            more_lbl.bind("<MouseWheel>", self._on_mousewheel)
+
+        if not rows_to_render:
+            empty_lbl = tk.Label(
+                self.prev_inner,
+                text="Keine geänderten Dateinamen mit der aktuellen Einstellung.",
+                font=("Segoe UI", 9),
+                bg=p["card_bg"],
+                fg=p["muted"],
+                pady=26,
+            )
+            empty_lbl.pack(fill="x")
+
+        self.prev_canvas.yview_moveto(0)
+
+        pick_id = first_changed_id or first_any_id
+        if pick_id:
+            self._select_preview_row(pick_id)
+        else:
+            self.lbl_det_before.config(text="Keine Einträge sichtbar.")
+            self.lbl_det_after.config(text="—", fg=p["muted"])
+
+    def _apply_shortening(self):
+        if self._last_changed_count <= 0:
+            self.parent.show_notice(
+                "Keine Änderungen",
+                "Mit den aktuellen Einstellungen wird kein Dateiname verändert.",
+                kind="info",
+            )
+            return
+
+        mode = self.mode_var.get()
+        param = None
+        if mode == "subtitles":
+            param = self._safe_int(self.dash_count_var, 2, 1, 10)
+        elif mode == "max_len":
+            param = (self._safe_int(self.max_chars_var, 50, 10, 250), bool(self.word_boundary_var.get()))
+        elif mode == "replace":
+            param = (self.replace_find_var.get(), self.replace_with_var.get())
+
+        self.parent.apply_name_shortening(mode, param=param, target_rids=self.target_rids)
+        self.destroy()
+
+    def _center_dialog(self):
+        self.update_idletasks()
+        sw = self.winfo_screenwidth()
+        sh = self.winfo_screenheight()
+        w = min(sw - 60, max(940, self.winfo_reqwidth() + 24))
+        h = min(sh - 80, max(670, self.winfo_reqheight() + 24))
+        px = self.parent.winfo_rootx()
+        py = self.parent.winfo_rooty()
+        pw = self.parent.winfo_width()
+        ph = self.parent.winfo_height()
+        x = max(30, min(sw - w - 30, px + (pw - w) // 2))
+        y = max(30, min(sh - h - 50, py + (ph - h) // 2))
+        self.geometry(f"{w}x{h}+{x}+{y}")
+
+
 class App(tk.Tk):
     def __init__(self, startup_source: str | None = None, startup_target: str | None = None,
                  startup_handoff: str | None = None, startup_theme: str | None = None):
@@ -6691,8 +9151,15 @@ class App(tk.Tk):
         # State Variables
         self.source_dir = tk.StringVar(value=r"C:\Users\01\Sortier_Test")
         self.target_dir = tk.StringVar(value=r"C:\Users\01\Sortier_Test_01")
+        self.target_mode = "adjacent"
         self.action_mode = tk.StringVar(value="copy")  # "copy" oder "move"
-        self.file_filter_mode = tk.StringVar(value="all")  # "all", "no_images", "only_images"
+        self.file_filter_mode = tk.StringVar(value="all")  # Legacy
+        self.filter_all_var = tk.BooleanVar(value=True)  # Standard: Alle Dateien aktiv
+        self.filter_images_var = tk.BooleanVar(value=False)
+        self.filter_text_docs_var = tk.BooleanVar(value=False)
+        self.filter_office_var = tk.BooleanVar(value=False)
+        self.filter_media_var = tk.BooleanVar(value=False)
+        self.filter_installers_var = tk.BooleanVar(value=False)
         self.subfolder_mode = tk.StringVar(value="split")  # "split", "whole", "ignore"
         self.recursive_var = tk.BooleanVar(value=True)
         self.include_installers_var = tk.BooleanVar(value=False)
@@ -6715,6 +9182,7 @@ class App(tk.Tk):
         self.step2_search_var = tk.StringVar(value="")
         self.step2_filter_chip = "all"
         self.step2_file_filter_mode = "all"  # "all", "no_images", "only_images", "installers", "media"
+        self.step2_active_types = set()  # set of active types in step 2 (empty = "all")
         self.step2_only_onedrive = False
         self.step2_date_from_var = tk.StringVar(value="")
         self.step2_date_to_var = tk.StringVar(value="")
@@ -6728,6 +9196,7 @@ class App(tk.Tk):
         self.dup_bulk_mode = "skip"  # "skip", "copy", "delete"
         self.dup_original_strategy = "clean_name"  # "clean_name", "newest", "oldest", "shortest_path"
         self._last_explorer_target = ""
+        self.recent_target_folders = []  # max. 5 Zielordner: [{"path": str, "pinned": bool, "label": str, "timestamp": float}]
         self._is_scanning = False
         self._scan_cancel_event = None
         self._active_popup_menu = None
@@ -6737,12 +9206,13 @@ class App(tk.Tk):
         self._resizing_separator = False
         self._restoring_state = False
 
-        # Spaltenkonfiguration inklusive Dateigröße und Original / Duplikat
-        self.col_keys = ["file", "ext", "size", "dup_status", "category", "target_folder", "date", "source_sub", "action"]
+        # Spaltenkonfiguration inklusive Grösse, Elemente und Original / Duplikat
+        self.col_keys = ["file", "ext", "size", "items_count", "dup_status", "category", "target_folder", "date", "source_sub", "action"]
         self.col_titles = {
             "file": "Dateiname",
             "ext": "Typ",
-            "size": "Dateigröße",
+            "size": "Grösse",
+            "items_count": "Elemente",
             "dup_status": "Original / Duplikat",
             "category": "Erkannte Kategorie",
             "target_folder": "Zielordner",
@@ -6753,7 +9223,8 @@ class App(tk.Tk):
         self.col_widths = {
             "file": 210,
             "ext": 52,
-            "size": 88,
+            "size": 86,
+            "items_count": 82,
             "dup_status": 135,
             "category": 165,
             "target_folder": 195,
@@ -6932,7 +9403,7 @@ class App(tk.Tk):
         header_row.pack(fill="x", pady=(0, 2))
         title = tk.Label(header_row, text="7-Ordner-System: Dokumenten-Sortierer", font=("Segoe UI", 16, "bold"), bg="#f8fafc", fg="#0f172a")
         title.pack(side="left")
-        ver_badge = tk.Label(header_row, text=APP_VERSION, font=("Segoe UI", 9, "bold"), bg="#e2e8f0", fg="#334155", padx=8, pady=2)
+        ver_badge = tk.Label(header_row, text=APP_VERSION, font=("Segoe UI", 9, "bold"), bg="#e2e8f0", fg="#0f172a", padx=8, pady=2)
         ver_badge.pack(side="left", padx=(10, 0), pady=(3, 0))
         self.btn_info_step1 = ModernRoundedButton(
             header_row,
@@ -6940,8 +9411,8 @@ class App(tk.Tk):
             command=self.show_app_info,
             bg="#ffffff",
             fg="#1e293b",
-            hover_bg="#eff6ff",
-            border_color="#cbd5e1",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
             font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
@@ -6954,9 +9425,9 @@ class App(tk.Tk):
             text="🌙 Dark",
             command=self.toggle_theme,
             bg="#ffffff",
-            fg="#334155",
-            hover_bg="#eff6ff",
-            border_color="#cbd5e1",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
             font=("Segoe UI", 9, "bold"),
             r=8,
             padx=11,
@@ -6984,10 +9455,10 @@ class App(tk.Tk):
             text="🔑 IT-Passwort",
             command=self.open_change_admin_password_dialog,
             bg="#ffffff",
-            fg="#334155",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
             pady=5,
@@ -7022,7 +9493,7 @@ class App(tk.Tk):
         
         ent_src = tk.Entry(row_src, textvariable=self.source_dir, font=("Segoe UI", 10), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
         ent_src.pack(side="left", fill="x", expand=True, padx=(0, 10), ipady=4)
-        ModernRoundedButton(row_src, "Durchsuchen...", command=self.browse_source, bg="#f1f5f9", fg="#1e293b", hover_bg="#e2e8f0", border_color="#cbd5e1", font=("Segoe UI", 9), r=8, padx=14, pady=5).pack(side="right")
+        ModernRoundedButton(row_src, "Durchsuchen...", command=self.browse_source, bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"), r=8, padx=14, pady=5).pack(side="right")
 
         # 2. Zielordner Card
         card_dest = tk.Frame(self.frame_step1, bg="#ffffff", highlightthickness=1, highlightbackground="#e2e8f0", padx=16, pady=12)
@@ -7034,7 +9505,7 @@ class App(tk.Tk):
         
         ent_dest = tk.Entry(row_dest, textvariable=self.target_dir, font=("Segoe UI", 10), bg="#ffffff", fg="#0f172a", relief="solid", bd=1)
         ent_dest.pack(side="left", fill="x", expand=True, padx=(0, 10), ipady=4)
-        ModernRoundedButton(row_dest, "Durchsuchen...", command=self.browse_target, bg="#f1f5f9", fg="#1e293b", hover_bg="#e2e8f0", border_color="#cbd5e1", font=("Segoe UI", 9), r=8, padx=14, pady=5).pack(side="right")
+        ModernRoundedButton(row_dest, "Durchsuchen...", command=self.browse_target, bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"), r=8, padx=14, pady=5).pack(side="right")
 
         # Einheitliche Pill-Breiten berechnen (damit Buttons in Groesse, Icon-X und Spalten exakt fluchten)
         f_pill_bold = tkfont.Font(font=("Segoe UI", 9, "bold"))
@@ -7066,10 +9537,10 @@ class App(tk.Tk):
             text="Als Unterordner (Pfad\\_01)",
             command=self.set_target_subfolder,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=14,
             pady=6,
@@ -7083,10 +9554,10 @@ class App(tk.Tk):
             text="Im gleichen Ordner",
             command=self.set_target_same,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=14,
             pady=6,
@@ -7100,17 +9571,51 @@ class App(tk.Tk):
             text="USB_Stick",
             command=self.set_target_usb,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=14,
             pady=6,
             icon_kind="usb_stick",
         )
-        self.btn_target_usb.pack(side="left")
+        self.btn_target_usb.pack(side="left", padx=(0, 10))
         attach_tooltip(self.btn_target_usb, "Erkennt den USB-Stick automatisch (egal ob E:, F:, G: ...) und setzt X:\\USB_Stick als Ziel")
+
+        self.btn_target_onedrive = ModernRoundedButton(
+            quick_row,
+            text="OneDrive",
+            command=self.set_target_onedrive,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=14,
+            pady=6,
+            icon_kind="cloud_onedrive",
+        )
+        self.btn_target_onedrive.pack(side="left", padx=(0, 10))
+        attach_tooltip(self.btn_target_onedrive, "Erkennt den Microsoft OneDrive-Ordner und setzt ihn als Zielverzeichnis")
+
+        self.btn_target_recent = ModernRoundedButton(
+            quick_row,
+            text="🕒 Letzte Ordner ▾",
+            command=self.open_step1_recent_targets_menu,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=14,
+            pady=6,
+            icon_kind="folder_adjacent",
+        )
+        self.btn_target_recent.pack(side="left")
+        attach_tooltip(self.btn_target_recent, "Schnellauswahl: Einen der letzten 5 genutzten Zielordner als Zielverzeichnis setzen")
 
         # 3. Optionen Card
         card_opt = tk.Frame(self.frame_step1, bg="#ffffff", highlightthickness=1, highlightbackground="#e2e8f0", padx=16, pady=12)
@@ -7127,30 +9632,35 @@ class App(tk.Tk):
         sep.pack(fill="x", pady=8)
 
         subfolder_specs = [
-            ("split", "Inhalte einzeln", "folder_split"),
-            ("whole", "Als Ganzes", "folder_whole"),
-            ("ignore", "Ignorieren", "folder_ignore"),
+            ("split", "Inhalte einzeln", "folder_split", "Durchsucht alle Unterordner und sortiert jede Datei einzeln nach Kategorie"),
+            ("whole", "Als Ganzes", "folder_whole", "Hält jeden Unterordner komplett zusammen – Dateien bleiben im selben Ordner"),
+            ("ignore", "Ignorieren", "folder_ignore", "Sortiert nur lose Dateien im Hauptordner – alle Unterordner bleiben unberührt"),
         ]
-        filter_specs = [
-            ("all", "Alle Dateien", "all_files"),
-            ("no_images", "Ohne Bilder", "doc_only"),
-            ("only_images", "Nur Bilder", "images_only"),
+        filter_specs_row2 = [
+            ("all", "Alle Dateien", "all_files", "Alle unterstützten Dateitypen einbeziehen (Standard)"),
+            ("images", "Bilder", "images_only", "Bilder einbeziehen: .jpg, .png, .gif, .webp, .svg, .raw etc."),
+            ("text_docs", "Texte & Docs", "doc_only", "Dokumente & Texte einbeziehen: .txt, .pdf, .doc, .rtf, .scan, .epub etc."),
         ]
-        extra_specs = [
-            ("installers", "Programme", "installer_app"),
-            ("media", "Videos & Audio", "media_video"),
-            ("onedrive", "OneDrive", "cloud_onedrive"),
-            ("sysguard", "Systemschutz", "shield_sys"),
-            ("firmguard", "NetzwerkSchutz", "shield_firm"),
+        filter_specs_row3 = [
+            ("office", "Office-Dateien", "office_doc", "Office-Dokumente einbeziehen: .docx, .xlsx, .pptx, .odt, .ods, .csv etc."),
+            ("media", "Videos & Audio", "media_video", "Medien einbeziehen: .mp4, .mkv, .avi, .mp3, .wav etc."),
+            ("installers", "Programme", "installer_app", "Installationsprogramme einbeziehen: .exe, .msi, .msix, .iso etc."),
         ]
-        opt_min_w = max(14 + 18 + 9 + f_pill_bold.measure(lbl) + 14 for _, lbl, _ in (subfolder_specs + filter_specs + extra_specs))
+        security_labels = ["NetzwerkSchutz", "Systemschutz"]
+        all_labels_to_measure = (
+            [lbl for _, lbl, _, _ in subfolder_specs] +
+            [lbl for _, lbl, _, _ in filter_specs_row2] +
+            [lbl for _, lbl, _, _ in filter_specs_row3] +
+            security_labels
+        )
+        opt_min_w = max(14 + 18 + 9 + f_pill_bold.measure(lbl) + 14 for lbl in all_labels_to_measure)
 
         subfolder_row = tk.Frame(card_opt, bg="#ffffff")
         subfolder_row.pack(fill="x", pady=(2, 4))
         tk.Label(subfolder_row, text="Unterordner:", width=12, anchor="w", font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#334155").pack(side="left", padx=(0, 8))
 
         self.subfolder_buttons = {}
-        for idx, (mode_key, label, icon_k) in enumerate(subfolder_specs):
+        for idx, (mode_key, label, icon_k, sub_tip) in enumerate(subfolder_specs):
             btn = ModernRoundedButton(
                 subfolder_row,
                 text=label,
@@ -7167,6 +9677,7 @@ class App(tk.Tk):
                 min_width=opt_min_w
             )
             btn.pack(side="left", padx=(0, 0 if idx == 2 else 10))
+            attach_tooltip(btn, sub_tip)
             self.subfolder_buttons[mode_key] = btn
 
         tk.Frame(subfolder_row, bg="#e2e8f0", width=1).pack(side="left", fill="y", padx=14)
@@ -7184,24 +9695,25 @@ class App(tk.Tk):
         tk.Label(filter_row, text="Dateifilter:", width=12, anchor="w", font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#334155").pack(side="left", padx=(0, 8))
 
         self.filter_buttons = {}
-        for idx, (mode_key, label, icon_k) in enumerate(filter_specs):
+        for idx, (f_key, f_lbl, f_icon, f_tip) in enumerate(filter_specs_row2):
             btn = ModernRoundedButton(
                 filter_row,
-                text=label,
-                command=lambda m=mode_key: self.set_file_filter_mode(m),
-                bg="#2563eb" if mode_key == "all" else "#ffffff",
-                fg="#ffffff" if mode_key == "all" else "#475569",
-                hover_bg="#1d4ed8" if mode_key == "all" else "#f1f5f9",
-                border_color=None if mode_key == "all" else "#cbd5e1",
-                font=("Segoe UI", 9, "bold") if mode_key == "all" else ("Segoe UI", 9),
+                text=f_lbl,
+                command=lambda k=f_key: self.toggle_file_filter(k),
+                bg="#2563eb" if f_key == "all" else "#ffffff",
+                fg="#ffffff" if f_key == "all" else "#475569",
+                hover_bg="#1d4ed8" if f_key == "all" else "#f1f5f9",
+                border_color=None if f_key == "all" else "#cbd5e1",
+                font=("Segoe UI", 9, "bold") if f_key == "all" else ("Segoe UI", 9),
                 r=8,
                 padx=14,
                 pady=6,
-                icon_kind=icon_k,
-                min_width=opt_min_w
+                icon_kind=f_icon,
+                min_width=opt_min_w,
             )
             btn.pack(side="left", padx=(0, 0 if idx == 2 else 10))
-            self.filter_buttons[mode_key] = btn
+            attach_tooltip(btn, f_tip)
+            self.filter_buttons[f_key] = btn
 
         tk.Frame(filter_row, bg="#e2e8f0", width=1).pack(side="left", fill="y", padx=14)
         self.btn_extra_firmguard = ModernRoundedButton(
@@ -7226,59 +9738,29 @@ class App(tk.Tk):
         extra_row.pack(fill="x", pady=(4, 6))
         tk.Label(extra_row, text="Zusätzlich:", width=12, anchor="w", font=("Segoe UI", 9, "bold"), bg="#ffffff", fg="#334155").pack(side="left", padx=(0, 8))
 
-        self.btn_extra_installers = ModernRoundedButton(
-            extra_row,
-            text="Programme",
-            command=self.toggle_include_installers,
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=14,
-            pady=6,
-            icon_kind="installer_app",
-            min_width=opt_min_w,
-        )
-        self.btn_extra_installers.pack(side="left", padx=(0, 10))
-        attach_tooltip(self.btn_extra_installers, "Installer mitsortieren: .exe, .msi, .msix ➔ 08_Programme_Installer")
+        for idx, (f_key, f_lbl, f_icon, f_tip) in enumerate(filter_specs_row3):
+            btn = ModernRoundedButton(
+                extra_row,
+                text=f_lbl,
+                command=lambda k=f_key: self.toggle_file_filter(k),
+                bg="#ffffff",
+                fg="#475569",
+                hover_bg="#f1f5f9",
+                border_color="#cbd5e1",
+                font=("Segoe UI", 9),
+                r=8,
+                padx=14,
+                pady=6,
+                icon_kind=f_icon,
+                min_width=opt_min_w,
+            )
+            btn.pack(side="left", padx=(0, 0 if idx == 2 else 10))
+            attach_tooltip(btn, f_tip)
+            self.filter_buttons[f_key] = btn
 
-        self.btn_extra_media = ModernRoundedButton(
-            extra_row,
-            text="Videos & Audio",
-            command=self.toggle_include_media,
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=14,
-            pady=6,
-            icon_kind="media_video",
-            min_width=opt_min_w,
-        )
-        self.btn_extra_media.pack(side="left", padx=(0, 10))
-        attach_tooltip(self.btn_extra_media, "Medien mitsortieren: .mp4, .mpeg, .ts, .mkv, .mp3 ➔ 09_Videos_Medien")
-
-        self.btn_extra_onedrive = ModernRoundedButton(
-            extra_row,
-            text="OneDrive",
-            command=self.toggle_include_onedrive,
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=14,
-            pady=6,
-            icon_kind="cloud_onedrive",
-            min_width=opt_min_w,
-        )
-        self.btn_extra_onedrive.pack(side="left", padx=(0, 0))
-        attach_tooltip(self.btn_extra_onedrive, "OneDrive & Cloud-Dateien mit durchsuchen (standardmäßig aus; Vorschau lädt nichts herunter)")
+        # Kompatibilitäts-Aliase
+        self.btn_extra_installers = self.filter_buttons["installers"]
+        self.btn_extra_media = self.filter_buttons["media"]
 
         tk.Frame(extra_row, bg="#e2e8f0", width=1).pack(side="left", fill="y", padx=14)
         self.btn_extra_sysguard = ModernRoundedButton(
@@ -7392,10 +9874,10 @@ class App(tk.Tk):
             text="Filter leeren",
             command=self.clear_extra_filters,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=14,
             pady=6,
@@ -7460,22 +9942,25 @@ class App(tk.Tk):
         )
         hint_dup.pack(fill="x", pady=(8, 2))
 
-        # Bottom Bar mit abgerundeten modernen Buttons
+        # Bottom Bar mit abgerundeten modernen Buttons (optisch & in Hoehe identisch zu Schritt 2)
         btn_bar = tk.Frame(self.frame_step1, bg="#f8fafc")
         btn_bar.pack(fill="x", pady=(18, 0))
 
+        step1_nav_h = tkfont.Font(font=("Segoe UI", 9, "bold")).metrics("linespace") * 2 + 5 * 2 + 4
+
         ModernRoundedButton(
             btn_bar,
-            text="↺ Letzte Aktion rückgängig machen (Undo)",
+            text="↺ Letzte Aktion rückgängig machen",
             command=self.revert_last_transaction,
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=14,
-            pady=8
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=10,
+            padx=18,
+            pady=8,
+            min_height=step1_nav_h,
         ).pack(side="left")
 
         ModernRoundedButton(
@@ -7488,7 +9973,8 @@ class App(tk.Tk):
             font=("Segoe UI", 10, "bold"),
             r=10,
             padx=22,
-            pady=10
+            pady=10,
+            min_height=step1_nav_h,
         ).pack(side="right")
 
     # -------------------------------------------------------------
@@ -7522,8 +10008,8 @@ class App(tk.Tk):
             command=self.show_app_info,
             bg="#ffffff",
             fg="#1e293b",
-            hover_bg="#eff6ff",
-            border_color="#cbd5e1",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
             font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
@@ -7536,9 +10022,9 @@ class App(tk.Tk):
             text="🌙 Dark",
             command=self.toggle_theme,
             bg="#ffffff",
-            fg="#334155",
-            hover_bg="#eff6ff",
-            border_color="#cbd5e1",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
             font=("Segoe UI", 9, "bold"),
             r=8,
             padx=11,
@@ -7568,9 +10054,9 @@ class App(tk.Tk):
         self.lbl_summary = tk.Label(self.frame_step2, text="", font=("Segoe UI", 10), bg="#f8fafc", fg="#475569")
         self.lbl_summary.pack(anchor="w", pady=(0, 8))
 
-        # Toolbar Card (Duplikate & Spalten)
-        tb_card = tk.Frame(self.frame_step2, bg="#ffffff", highlightthickness=1, highlightbackground="#e2e8f0", padx=12, pady=10)
-        tb_card.pack(fill="x", pady=(0, 8))
+        # Toolbar Card (Duplikate, Filter & Aktionen klar abgegrenzt)
+        tb_card = tk.Frame(self.frame_step2, bg="#ffffff", highlightthickness=1, highlightbackground="#94a3b8", padx=12, pady=10)
+        tb_card.pack(fill="x", pady=(0, 10))
 
         # Zeile 1: Duplikate-Steuerung mit abgerundeten Buttons & synchroner Farbwahl
         dup_row = tk.Frame(tb_card, bg="#ffffff")
@@ -7598,10 +10084,10 @@ class App(tk.Tk):
             text="0 Mitkopieren",
             command=lambda: self.set_all_duplicates("Mitkopieren"),
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=10,
             pady=4
@@ -7613,10 +10099,10 @@ class App(tk.Tk):
             text="0 Gelöscht",
             command=self.delete_all_duplicates,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=10,
             pady=4
@@ -7646,10 +10132,10 @@ class App(tk.Tk):
             text="📋 Alle mitkopieren",
             command=lambda: self.set_all_duplicates("Mitkopieren"),
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=12,
             pady=5
@@ -7677,10 +10163,10 @@ class App(tk.Tk):
             text="🗑 Alle löschen",
             command=self.delete_all_duplicates,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=10,
             pady=5
@@ -7723,7 +10209,7 @@ class App(tk.Tk):
             bg="#ffffff",
             fg="#1e293b",
             hover_bg="#eff6ff",
-            border_color="#cbd5e1",
+            border_color="#94a3b8",
             font=("Segoe UI", 9, "bold"),
             r=8,
             padx=10,
@@ -7731,8 +10217,8 @@ class App(tk.Tk):
         )
         self.btn_toggle_preview.pack(side="left")
 
-        # Trennlinie
-        tk.Frame(tb_card, bg="#f1f5f9", height=1).pack(fill="x", pady=(2, 6))
+        # Deutliche Trennlinie zwischen Duplikate- und Filter-Bereich
+        tk.Frame(tb_card, bg="#cbd5e1", height=1).pack(fill="x", pady=(2, 7))
 
         # Zeile 2: Live-Suchfeld, Schnellfilter-Chips & nachtraegliche Datei-/Datums-/Groessenfilter (ohne neuen Scan)
         filter_row = tk.Frame(tb_card, bg="#ffffff")
@@ -7768,10 +10254,10 @@ class App(tk.Tk):
                 text=f"{chip_lbl} (0)",
                 command=lambda ck=chip_key: self.set_step2_filter_chip(ck),
                 bg="#2563eb" if is_def else "#ffffff",
-                fg="#ffffff" if is_def else "#475569",
+                fg="#ffffff" if is_def else "#1e293b",
                 hover_bg="#1d4ed8" if is_def else "#f1f5f9",
-                border_color=None if is_def else "#cbd5e1",
-                font=("Segoe UI", 9, "bold") if is_def else ("Segoe UI", 9),
+                border_color=None if is_def else "#94a3b8",
+                font=("Segoe UI", 9, "bold"),
                 r=8,
                 padx=8,
                 pady=4,
@@ -7784,10 +10270,10 @@ class App(tk.Tk):
             text="✕ Zurücksetzen",
             command=self.clear_step2_filters,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=7,
             pady=4,
@@ -7800,10 +10286,11 @@ class App(tk.Tk):
 
         self._step2_file_filter_specs = [
             ("all", "Alle", "all_files"),
-            ("no_images", "Ohne Bilder", "doc_only"),
-            ("only_images", "Nur Bilder", "images_only"),
-            ("installers", "Programme", "installer_app"),
+            ("images", "Bilder", "images_only"),
+            ("text_docs", "Texte & Docs", "doc_only"),
+            ("office", "Office", "office_doc"),
             ("media", "Videos & Audio", "media_video"),
+            ("installers", "Programme", "installer_app"),
         ]
         self.step2_file_filter_buttons = {}
         for f_mode, f_lbl, f_icon in self._step2_file_filter_specs:
@@ -7813,10 +10300,10 @@ class App(tk.Tk):
                 text=f_lbl,
                 command=lambda m=f_mode: self.set_step2_file_filter_mode(m),
                 bg="#2563eb" if is_def else "#ffffff",
-                fg="#ffffff" if is_def else "#475569",
+                fg="#ffffff" if is_def else "#1e293b",
                 hover_bg="#1d4ed8" if is_def else "#f1f5f9",
-                border_color=None if is_def else "#cbd5e1",
-                font=("Segoe UI", 9, "bold") if is_def else ("Segoe UI", 9),
+                border_color=None if is_def else "#94a3b8",
+                font=("Segoe UI", 9, "bold"),
                 r=8,
                 padx=6,
                 pady=4,
@@ -7825,23 +10312,6 @@ class App(tk.Tk):
             f_btn.pack(side="left", padx=(0, 3))
             self.step2_file_filter_buttons[f_mode] = f_btn
 
-        self.btn_step2_extra_onedrive = ModernRoundedButton(
-            filter_row,
-            text="OneDrive",
-            command=self.toggle_step2_onedrive_filter,
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=6,
-            pady=4,
-            icon_kind="cloud_onedrive",
-        )
-        self.btn_step2_extra_onedrive.pack(side="left", padx=(0, 6))
-        attach_tooltip(self.btn_step2_extra_onedrive, "Nur Dateien aus OneDrive-Ordnern im Ergebnis anzeigen")
-
         tk.Frame(filter_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 6))
 
         self.btn_step2_date_preset = ModernRoundedButton(
@@ -7849,10 +10319,10 @@ class App(tk.Tk):
             text="Zeitraum ▾",
             command=self.open_step2_date_preset_menu,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=7,
             pady=4,
@@ -7908,39 +10378,160 @@ class App(tk.Tk):
             text="Größe ▾",
             command=self.open_step2_size_preset_menu,
             bg="#ffffff",
-            fg="#475569",
+            fg="#1e293b",
             hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
             r=8,
             padx=7,
             pady=4,
         )
         self.btn_step2_size_preset.pack(side="left", padx=(0, 0))
 
-        # Trennlinie
-        sep_tb = tk.Frame(tb_card, bg="#f1f5f9", height=1)
-        sep_tb.pack(fill="x", pady=(0, 6))
+        # Deutliche Trennlinie zwischen Filter- und Aktions-Bereich
+        sep_tb = tk.Frame(tb_card, bg="#cbd5e1", height=1)
+        sep_tb.pack(fill="x", pady=(1, 7))
 
-        # Zeile 3: Spalten-Reset & Hinweis (Spalten koennen am Kopf gezogen & in der Breite angepasst werden)
+        # Zeile 3: Spalten-Reset & Toolbar & deutliche Tastatur-Kürzel
         col_row = tk.Frame(tb_card, bg="#ffffff")
-        col_row.pack(fill="x")
+        col_row.pack(fill="x", pady=(2, 0))
 
-        ModernRoundedButton(col_row, "↺ Spalten zurücksetzen", command=self.reset_column_order, bg="#ffffff", fg="#334155", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9), r=6, padx=10, pady=4).pack(side="left", padx=(0, 6))
+        # 1. Zielordner Gruppe
+        self.btn_assign_target = ModernRoundedButton(
+            col_row,
+            "📂 Zielordner ändern ▾",
+            command=self.open_assign_target_menu,
+            bg="#ffffff",
+            fg="#2563eb",
+            hover_bg="#eff6ff",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=10,
+            pady=5,
+        )
+        self.btn_assign_target.pack(side="left", padx=(0, 4))
+        attach_tooltip(self.btn_assign_target, "Zielordner ändern: Menü mit Schnellauswahl der letzten 5 Ordner oder Dialog öffnen")
 
-        self.btn_assign_target = ModernRoundedButton(col_row, "📂 Zielordner ändern…", command=self.assign_target_folder_selected, bg="#ffffff", fg="#2563eb", hover_bg="#eff6ff", border_color="#93c5fd", font=("Segoe UI", 9, "bold"), r=6, padx=10, pady=4)
-        self.btn_assign_target.pack(side="left", padx=(0, 6))
-        attach_tooltip(self.btn_assign_target, "Zielordner für ausgewählte Datei(en) umstellen & optional als Regel merken")
+        self.btn_quick_last_target = ModernRoundedButton(
+            col_row,
+            "⚡ Zuletzt: —",
+            command=self.quick_apply_last_target,
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=10,
+            pady=5,
+        )
+        self.btn_quick_last_target.pack(side="left", padx=(0, 6))
+        attach_tooltip(self.btn_quick_last_target, "1-Klick: Letzten Zielordner sofort für alle Einträge übernehmen")
 
-        self.btn_manage_rules = ModernRoundedButton(col_row, "⚙ Regeln", command=self.open_custom_rules_manager, bg="#ffffff", fg="#334155", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9), r=6, padx=10, pady=4)
-        self.btn_manage_rules.pack(side="left", padx=(0, 6))
-        attach_tooltip(self.btn_manage_rules, "Gespeicherte Stichwort-Regeln anzeigen oder löschen")
+        # Trenner
+        tk.Frame(col_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 6))
 
-        self.btn_dup_strategy = ModernRoundedButton(col_row, "🎯 Original-Wahl ▾", command=self.open_dup_strategy_menu, bg="#ffffff", fg="#334155", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9), r=6, padx=10, pady=4)
-        self.btn_dup_strategy.pack(side="left", padx=(0, 10))
+        # 2. Dateinamen & F2 Gruppe
+        self.btn_shorten_names = ModernRoundedButton(
+            col_row,
+            "✂️ Namen kürzen ▾",
+            command=self.open_shorten_names_menu,
+            bg="#ffffff",
+            fg="#6d28d9",
+            hover_bg="#f5f3ff",
+            border_color="#c4b5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=10,
+            pady=5,
+        )
+        self.btn_shorten_names.pack(side="left", padx=(0, 4))
+        attach_tooltip(self.btn_shorten_names, "Dateinamen einkürzen: Untertitel nach '-' entfernen, max. Länge begrenzen oder freier Dialog")
+
+        self.btn_rename_single = ModernRoundedButton(
+            col_row,
+            "✏️ F2: Name bearbeiten",
+            command=self.start_rename_selected_file,
+            bg="#ffffff",
+            fg="#0f766e",
+            hover_bg="#f0fdfa",
+            border_color="#99f6e4",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=10,
+            pady=5,
+        )
+        self.btn_rename_single.pack(side="left", padx=(0, 6))
+        attach_tooltip(self.btn_rename_single, "Taste F2 drücken oder hier klicken: Ausgewählte Datei direkt umbenennen")
+
+        # Trenner
+        tk.Frame(col_row, bg="#e2e8f0", width=1, height=22).pack(side="left", padx=(0, 6))
+
+        # 3. Regeln & Duplikate & Spalten Gruppe
+        self.btn_dup_strategy = ModernRoundedButton(
+            col_row,
+            "🎯 Original-Wahl ▾",
+            command=self.open_dup_strategy_menu,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=10,
+            pady=5,
+        )
+        self.btn_dup_strategy.pack(side="left", padx=(0, 4))
         attach_tooltip(self.btn_dup_strategy, "Strategie wählen, welche inhaltsgleiche Datei als Original behalten wird")
 
-        tk.Label(col_row, text="💡 Strg+F: Suche  |  Leertaste: Vorschau  |  Entf löscht  |  Doppelklick öffnet", font=("Segoe UI", 9, "italic"), bg="#ffffff", fg="#64748b").pack(side="right")
+        self.btn_manage_rules = ModernRoundedButton(
+            col_row,
+            "⚙ Regeln",
+            command=self.open_custom_rules_manager,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=9,
+            pady=5,
+        )
+        self.btn_manage_rules.pack(side="left", padx=(0, 4))
+        attach_tooltip(self.btn_manage_rules, "Gespeicherte Stichwort-Regeln anzeigen oder löschen")
+
+        ModernRoundedButton(
+            col_row,
+            "↺ Spalten",
+            command=self.reset_column_order,
+            bg="#ffffff",
+            fg="#1e293b",
+            hover_bg="#f1f5f9",
+            border_color="#94a3b8",
+            font=("Segoe UI", 9, "bold"),
+            r=8,
+            padx=8,
+            pady=5,
+        ).pack(side="left", padx=(0, 6))
+
+        # 4. Rechts: Dezente, flache Tastenkürzel-Legende (klar als reine Anzeige von klickbaren Buttons unterscheidbar)
+        sc_bar = tk.Frame(col_row, bg="#ffffff")
+        sc_bar.pack(side="right")
+
+        tk.Label(sc_bar, text="Tasten:", font=("Segoe UI", 8), bg="#ffffff", fg="#94a3b8", padx=4).pack(side="left")
+
+        for k_idx, (k_key, k_desc) in enumerate((("Strg+F", "Suche"), ("Leertaste", "Vorschau"), ("Entf", "Löschen"))):
+            if k_idx > 0:
+                tk.Label(sc_bar, text="·", font=("Segoe UI", 8), bg="#ffffff", fg="#cbd5e1", padx=4).pack(side="left")
+            tk.Label(
+                sc_bar, text=f" {k_key} ", font=("Segoe UI", 8, "bold"),
+                bg="#f1f5f9", fg="#475569", padx=2, pady=1, bd=0,
+            ).pack(side="left")
+            tk.Label(
+                sc_bar, text=k_desc, font=("Segoe UI", 8),
+                bg="#ffffff", fg="#64748b", padx=3, pady=1,
+            ).pack(side="left")
 
         # Hauptbereich Schritt 2: Tabelle links + beliebig aufziehbare eingebettete Fluent-Vorschau rechts
         self.step2_body = tk.PanedWindow(
@@ -7984,7 +10575,7 @@ class App(tk.Tk):
         # Spalten konfigurieren: minwidth=35 und stretch=False ermoeglichen flexibles Engerschieben
         for c in self.col_keys:
             self.tree.heading(c, text=self.col_titles[c], command=lambda _c=c: self.sort_column(_c, False))
-            anchor = "e" if c == "size" else ("center" if c in ["ext", "date", "action", "dup_status"] else "w")
+            anchor = "e" if c in ["size", "items_count"] else ("center" if c in ["ext", "date", "action", "dup_status"] else "w")
             self.tree.column(c, width=self.col_widths.get(c, 100), minwidth=35, stretch=False, anchor=anchor)
 
         # Standard-Displayreihenfolge
@@ -8005,61 +10596,114 @@ class App(tk.Tk):
         self.tree.bind("<Button-3>", self.show_context_menu)
         self.tree.bind("<<TreeviewSelect>>", lambda _e: self._on_tree_selection_changed())
         self.tree.bind("<space>", self._on_tree_space_key)
+        self.tree.bind("<F2>", lambda _e: (self.start_rename_selected_file(), "break")[1])
+        self.bind("<F2>", lambda _e: (self.start_rename_selected_file(), "break")[1])
+        self.tree.bind("<Control-z>", lambda _e: (self.reset_renamed_names(), "break")[1])
+        self.tree.bind("<Control-Z>", lambda _e: (self.reset_renamed_names(), "break")[1])
+        self.bind("<Control-z>", lambda _e: (self.reset_renamed_names(), "break")[1])
+        self.bind("<Control-Z>", lambda _e: (self.reset_renamed_names(), "break")[1])
         self.tree.bind("<Delete>", lambda e: self.delete_selected_files())
         self.tree.bind("<BackSpace>", lambda e: self.delete_selected_files())
         self.tree.bind("<Return>", lambda e: self.open_selected_file())
         self.tree.bind("<Control-a>", self.select_all_rows)
         self.tree.bind("<Control-A>", self.select_all_rows)
 
-        # Bottom Bar mit BACK-Knopf und Ausfuehren-Knopf (abgerundete ModernRoundedButtons)
+        # Bottom Bar mit BACK-Knopf, mittigem Original-Vorschau-Reset und Ausfuehren-Knoepfen (alle exakt gleich hoch)
         nav_bar = tk.Frame(self.frame_step2, bg="#f8fafc")
         nav_bar.pack(fill="x", pady=(14, 0))
+        nav_bar.columnconfigure(0, weight=1)
+        nav_bar.columnconfigure(1, weight=0)
+        nav_bar.columnconfigure(2, weight=1)
+
+        nav_btn_h = tkfont.Font(font=("Segoe UI", 9, "bold")).metrics("linespace") * 2 + 5 * 2 + 4
 
         ModernRoundedButton(
             nav_bar,
             text="⬅ Zurück zur Ordnerauswahl",
             command=self.show_step1,
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=10,
             padx=16,
-            pady=8
-        ).pack(side="left")
+            pady=8,
+            min_height=nav_btn_h,
+        ).grid(row=0, column=0, sticky="w")
+
+        self.btn_reset_original_preview = ModernRoundedButton(
+            nav_bar,
+            text="⬅ Zurück zur\nOriginal-Vorschau",
+            command=self.reset_to_original_preview,
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=10,
+            padx=22,
+            pady=5,
+            min_height=nav_btn_h,
+        )
+        self.btn_reset_original_preview.grid(row=0, column=1, padx=12)
+        attach_tooltip(
+            self.btn_reset_original_preview,
+            "Alle geänderten Dateinamen, Zielordner und Filter sofort auf die Original-Vorschau zurücksetzen",
+        )
+
+        nav_right = tk.Frame(nav_bar, bg="#f8fafc")
+        nav_right.grid(row=0, column=2, sticky="e")
+
+        f_nav_sel = tkfont.Font(font=("Segoe UI", 9, "bold"))
+        sel_all_min_w = max(
+            f_nav_sel.measure("✓ Alle wählen"),
+            f_nav_sel.measure("☐ Auswahl aufheben"),
+        ) + 32
+
+        self.btn_toggle_select_all = ModernRoundedButton(
+            nav_right,
+            text="✓ Alle wählen",
+            command=self.toggle_select_all_rows,
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=10,
+            padx=16,
+            pady=8,
+            min_width=sel_all_min_w,
+            min_height=nav_btn_h,
+        )
+        self.btn_toggle_select_all.pack(side="left", padx=(0, 10))
+        attach_tooltip(
+            self.btn_toggle_select_all,
+            "Alle sichtbaren Zeilen markieren oder Auswahl wieder aufheben (Strg+A)",
+        )
+
+        f_nav_exec = tkfont.Font(font=("Segoe UI", 10, "bold"))
+        exec_min_w = f_nav_exec.measure("Auf alle 999 anwenden ➔") + 44
 
         self.btn_execute = ModernRoundedButton(
-            nav_bar,
-            text="Jetzt sortieren & anwenden ➔",
-            command=self.execute_sort,
-            bg="#2563eb",
-            fg="#ffffff",
-            hover_bg="#1d4ed8",
+            nav_right,
+            text="Keine Auswahl",
+            command=self.execute_selected_or_filtered_sort,
+            bg="#e2e8f0",
+            fg="#64748b",
+            hover_bg="#e2e8f0",
+            border_color="#cbd5e1",
             font=("Segoe UI", 10, "bold"),
             r=10,
             padx=22,
-            pady=10
+            pady=10,
+            min_width=exec_min_w,
+            min_height=nav_btn_h,
         )
-        self.btn_execute.pack(side="right")
-
-        self.btn_execute_scope = ModernRoundedButton(
-            nav_bar,
-            text="Nur Auswahl / Filter ausführen ➔",
-            command=self.execute_selected_or_filtered_sort,
-            bg="#ffffff",
-            fg="#2563eb",
-            hover_bg="#eff6ff",
-            border_color="#93c5fd",
-            font=("Segoe UI", 10, "bold"),
-            r=10,
-            padx=18,
-            pady=10
-        )
-        self.btn_execute_scope.pack(side="right", padx=(0, 10))
+        self.btn_execute.pack(side="left")
         attach_tooltip(
-            self.btn_execute_scope,
-            "Nur aktuell markierte Zeilen (oder bei aktivem Filter die sichtbaren Zeilen) direkt kopieren/verschieben",
+            self.btn_execute,
+            "Sortierung auf die markierten Einträge anwenden (zuerst Zeilen markieren oder „✓ Alle wählen“ klicken)",
         )
 
     # -------------------------------------------------------------
@@ -8217,7 +10861,7 @@ class App(tk.Tk):
                     pass
                 self.step2_body.forget(self.preview_pane)
             if hasattr(self, "btn_toggle_preview"):
-                self.btn_toggle_preview.update_style(bg="#ffffff", fg="#1e293b", hover_bg="#eff6ff", border_color="#cbd5e1")
+                self.btn_toggle_preview.update_style(bg="#ffffff", fg="#1e293b", hover_bg="#eff6ff", border_color="#94a3b8")
 
         try:
             self.update_idletasks()
@@ -8238,12 +10882,12 @@ class App(tk.Tk):
                 if 0 <= idx < len(disp):
                     self.selected_col_key = disp[idx]
             col_items = [
-                {"icon": "⬅", "label": "Spalte nach links verschieben", "command": self.move_selected_col_left},
-                {"icon": "➔", "label": "Spalte nach rechts verschieben", "command": self.move_selected_col_right},
-                {"icon": "⏮", "label": "An den Anfang verschieben", "command": self.move_selected_col_first},
-                {"icon": "⏭", "label": "An das Ende verschieben", "command": self.move_selected_col_last},
+                {"icon": "arrow_left", "label": "Spalte nach links verschieben", "command": self.move_selected_col_left},
+                {"icon": "arrow_right", "label": "Spalte nach rechts verschieben", "command": self.move_selected_col_right},
+                {"icon": "arrow_first", "label": "An den Anfang verschieben", "command": self.move_selected_col_first},
+                {"icon": "arrow_last", "label": "An das Ende verschieben", "command": self.move_selected_col_last},
                 {"kind": "sep"},
-                {"icon": "↺", "label": "Spalten zurücksetzen & einpassen", "command": self.reset_column_order, "accent": True},
+                {"icon": "refresh", "label": "Spalten zurücksetzen & einpassen", "command": self.reset_column_order},
             ]
             self._open_fluent_popup(col_items, event.x_root, event.y_root)
         elif region in ["cell", "tree"]:
@@ -8261,38 +10905,52 @@ class App(tk.Tk):
 
             if count > 1:
                 menu_items.append({
-                    "icon": "▶",
+                    "icon": "play",
                     "label": f"Nur diese {count} markierten jetzt ausführen",
                     "command": self.execute_selected_or_filtered_sort,
-                    "accent": True,
                 })
                 menu_items.append({
-                    "icon": "📂",
+                    "icon": "folder",
                     "label": f"Zielordner ändern für {count} Einträge…",
                     "command": self.assign_target_folder_selected,
-                    "accent": True,
                 })
+                menu_items.append({
+                    "icon": "scissors",
+                    "label": f"Dateinamen einkürzen ({count} Dateien)…",
+                    "command": self.open_custom_shorten_dialog,
+                })
+                recent = getattr(self, "recent_target_folders", [])
+                if recent:
+                    r0 = recent[0]
+                    r0_lbl = r0.get("label") or os.path.basename(r0["path"].rstrip("\\/")) or r0["path"]
+                    r0_short = r0_lbl if len(r0_lbl) <= 20 else r0_lbl[:18] + "…"
+                    menu_items.append({
+                        "icon": "zap",
+                        "label": f"Ziel: Zuletzt ({r0_short})",
+                        "command": lambda sp=r0["path"], sl=r0_lbl: self.quick_assign_target_to_preview(sp, sl, apply_to_all=False),
+                    })
                 menu_items.append({"kind": "sep"})
                 menu_items.append({
-                    "icon": "🗑",
+                    "icon": "trash",
                     "label": f"{count} ausgewählte Dateien in Papierkorb löschen",
+                    "shortcut": "Entf",
                     "command": self.delete_selected_files,
                     "danger": True,
                 })
                 menu_items.append({"kind": "sep"})
                 menu_items.append({
-                    "icon": "📋",
+                    "icon": "copy",
                     "label": "Ausgewählte auf „Mitkopieren“ setzen",
                     "command": lambda: self.set_selected_duplicates_action("Mitkopieren"),
                 })
                 menu_items.append({
-                    "icon": "⛔",
+                    "icon": "skip",
                     "label": "Ausgewählte auf „Überspringen“ setzen",
                     "command": lambda: self.set_selected_duplicates_action("Überspringen"),
                 })
                 menu_items.append({"kind": "sep"})
                 menu_items.append({
-                    "icon": "📄",
+                    "icon": "doc",
                     "label": f"In Standard-App öffnen ({count} Dateien)",
                     "command": self.open_selected_file,
                 })
@@ -8302,48 +10960,62 @@ class App(tk.Tk):
                     return
 
                 menu_items.append({
-                    "icon": "👁",
+                    "icon": "preview",
                     "label": "Dateivorschau hier anzeigen",
+                    "shortcut": "Leertaste",
                     "command": lambda r=row_id: self.toggle_preview_pane(True, row_id=r),
-                    "accent": True,
                 })
                 menu_items.append({
-                    "icon": "📂",
+                    "icon": "folder",
                     "label": "Zielordner ändern / Regel merken…",
                     "command": lambda r=row_id: self.assign_target_folder_selected([r]),
-                    "accent": True,
                 })
                 menu_items.append({
-                    "icon": "▶",
+                    "icon": "rename",
+                    "label": "Dateiname bearbeiten…",
+                    "shortcut": "F2",
+                    "command": lambda r=row_id: self.start_rename_selected_file(r),
+                })
+                recent = getattr(self, "recent_target_folders", [])
+                if recent:
+                    r0 = recent[0]
+                    r0_lbl = r0.get("label") or os.path.basename(r0["path"].rstrip("\\/")) or r0["path"]
+                    r0_short = r0_lbl if len(r0_lbl) <= 20 else r0_lbl[:18] + "…"
+                    menu_items.append({
+                        "icon": "zap",
+                        "label": f"Ziel: Zuletzt ({r0_short})",
+                        "command": lambda sp=r0["path"], sl=r0_lbl, r=row_id: self.quick_assign_target_to_preview(sp, sl, apply_to_all=False),
+                    })
+                menu_items.append({
+                    "icon": "play",
                     "label": "Nur diese Datei jetzt ausführen",
                     "command": lambda r=row_id: self.execute_sort(target_row_ids=[r], scope_label="aus Markierung"),
-                    "accent": True,
                 })
                 if item.get("is_dir"):
-                    menu_items.append({"icon": "📂", "label": "Ordner im Explorer öffnen", "command": lambda p=item["src_path"]: self.open_file_directly(p)})
-                    menu_items.append({"icon": "🔍", "label": "Im Überordner zeigen", "command": lambda p=item["src_path"]: self.open_file_folder(p)})
+                    menu_items.append({"icon": "folder", "label": "Ordner im Explorer öffnen", "command": lambda p=item["src_path"]: self.open_file_directly(p)})
+                    menu_items.append({"icon": "explorer", "label": "Im Überordner zeigen", "command": lambda p=item["src_path"]: self.open_file_folder(p)})
                 else:
-                    menu_items.append({"icon": "📄", "label": "In Standard-App öffnen (Word, PDF, Bild…)", "command": lambda p=item["src_path"]: self.open_file_directly(p)})
-                    menu_items.append({"icon": "📂", "label": "Im Windows Explorer zeigen", "command": lambda p=item["src_path"]: self.open_file_folder(p)})
+                    menu_items.append({"icon": "doc", "label": "In Standard-App öffnen", "command": lambda p=item["src_path"]: self.open_file_directly(p)})
+                    menu_items.append({"icon": "explorer", "label": "Im Windows-Explorer zeigen", "command": lambda p=item["src_path"]: self.open_file_folder(p)})
                 menu_items.append({"kind": "sep"})
 
                 if item.get("is_duplicate"):
-                    menu_items.append({"icon": "📋", "label": "Auf „Mitkopieren“ setzen", "command": lambda r=row_id: self.set_duplicate_action(r, "Mitkopieren")})
-                    menu_items.append({"icon": "⛔", "label": "Auf „Überspringen“ setzen", "command": lambda r=row_id: self.set_duplicate_action(r, "Überspringen")})
-                    menu_items.append({"icon": "⇄", "label": "Zum Original machen (Rollen tauschen)", "command": lambda r=row_id: self.swap_roles_for_item(r)})
-                    menu_items.append({"icon": "🔍", "label": "Mit Original im Detail vergleichen…", "command": lambda r=row_id: self.open_compare_dialog(r)})
+                    menu_items.append({"icon": "copy", "label": "Auf „Mitkopieren“ setzen", "command": lambda r=row_id: self.set_duplicate_action(r, "Mitkopieren")})
+                    menu_items.append({"icon": "skip", "label": "Auf „Überspringen“ setzen", "command": lambda r=row_id: self.set_duplicate_action(r, "Überspringen")})
+                    menu_items.append({"icon": "swap", "label": "Zum Original machen (Rollen tauschen)", "command": lambda r=row_id: self.swap_roles_for_item(r)})
+                    menu_items.append({"icon": "compare", "label": "Mit Original im Detail vergleichen…", "command": lambda r=row_id: self.open_compare_dialog(r)})
                     menu_items.append({"kind": "sep"})
-                    menu_items.append({"icon": "🗑", "label": "In Windows-Papierkorb löschen", "command": self.delete_selected_files, "danger": True})
+                    menu_items.append({"icon": "trash", "label": "In Windows-Papierkorb löschen", "shortcut": "Entf", "command": self.delete_selected_files, "danger": True})
                 else:
                     if item.get("action") == "Überspringen":
                         base_act = "Kopieren" if self.action_mode.get() == "copy" else "Verschieben"
-                        menu_items.append({"icon": "▶", "label": f"Auf „{base_act}“ setzen", "command": lambda r=row_id, a=base_act: self.set_item_action(r, a)})
+                        menu_items.append({"icon": "play", "label": f"Auf „{base_act}“ setzen", "command": lambda r=row_id, a=base_act: self.set_item_action(r, a)})
                     else:
-                        menu_items.append({"icon": "⛔", "label": "Auf „Überspringen“ setzen", "command": lambda r=row_id: self.set_item_action(r, "Überspringen")})
+                        menu_items.append({"icon": "skip", "label": "Auf „Überspringen“ setzen", "command": lambda r=row_id: self.set_item_action(r, "Überspringen")})
                     if item.get("has_duplicates"):
-                        menu_items.append({"icon": "🔍", "label": "Mit Duplikat im Detail vergleichen…", "command": lambda r=row_id: self.open_compare_dialog(r)})
+                        menu_items.append({"icon": "compare", "label": "Mit Duplikat im Detail vergleichen…", "command": lambda r=row_id: self.open_compare_dialog(r)})
                     menu_items.append({"kind": "sep"})
-                    menu_items.append({"icon": "🗑", "label": "In Windows-Papierkorb löschen", "command": self.delete_selected_files, "danger": True})
+                    menu_items.append({"icon": "trash", "label": "In Windows-Papierkorb löschen", "shortcut": "Entf", "command": self.delete_selected_files, "danger": True})
 
             self._open_fluent_popup(menu_items, event.x_root, event.y_root)
 
@@ -8411,8 +11083,23 @@ class App(tk.Tk):
         self._save_app_state()
 
     def select_all_rows(self, event=None):
-        self.tree.selection_set(self.tree.get_children())
+        self.tree.selection_set(self.tree.get_children(""))
+        self._update_execute_scope_button()
         return "break"
+
+    def toggle_select_all_rows(self):
+        """Schaltet zwischen 'Alle sichtbaren Zeilen markieren' und 'Auswahl aufheben' um."""
+        vis = list(self.tree.get_children(""))
+        if not vis:
+            return
+        sel = set(self.tree.selection())
+        if all(rid in sel for rid in vis):
+            self.tree.selection_remove(tuple(sel))
+        else:
+            self.tree.selection_set(vis)
+        self._update_execute_scope_button()
+        if hasattr(self, "_update_preview_pane_selection"):
+            self._update_preview_pane_selection()
 
     def sort_column(self, col, reverse):
         """Sortiert Vorschau-Zeilen nach der Spalte; Original und seine Duplikate bleiben (ausser bei Status-Sortierung) als Block zusammen."""
@@ -8423,6 +11110,9 @@ class App(tk.Tk):
             if col == "size":
                 sz = self.preview_items.get(rid, {}).get("size_bytes", -1)
                 return (sz < 0, sz)
+            if col == "items_count":
+                cnt = self.preview_items.get(rid, {}).get("inner_count", 0)
+                return (cnt <= 0, cnt)
             return get_sort_key(self.tree.set(rid, col))
 
         row_ids = list(self._preview_row_order) if getattr(self, "_preview_row_order", None) else list(self.tree.get_children(''))
@@ -8529,12 +11219,20 @@ class App(tk.Tk):
         self.apply_step2_filters()
 
     def set_step2_file_filter_mode(self, mode: str):
-        valid = {"all", "no_images", "only_images", "installers", "media"}
-        target = mode if mode in valid else "all"
-        if target != "all" and getattr(self, "step2_file_filter_mode", "all") == target:
+        if not hasattr(self, "step2_active_types"):
+            self.step2_active_types = set()
+        if mode == "all":
+            self.step2_active_types.clear()
             self.step2_file_filter_mode = "all"
         else:
-            self.step2_file_filter_mode = target
+            if mode in self.step2_active_types:
+                self.step2_active_types.remove(mode)
+            else:
+                self.step2_active_types.add(mode)
+            if not self.step2_active_types:
+                self.step2_file_filter_mode = "all"
+            else:
+                self.step2_file_filter_mode = "custom"
         self.update_step2_detail_filter_ui()
         self.apply_step2_filters()
 
@@ -8686,13 +11384,18 @@ class App(tk.Tk):
         FluentPopupMenu(self, menu_items, x, y)
 
     def update_step2_detail_filter_ui(self):
-        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
         active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
 
         if hasattr(self, "step2_file_filter_buttons"):
-            cur_mode = getattr(self, "step2_file_filter_mode", "all")
+            active_types = getattr(self, "step2_active_types", set())
+            is_all = (len(active_types) == 0)
             for m_key, btn in self.step2_file_filter_buttons.items():
-                btn.update_style(**(active_kw if m_key == cur_mode else neutral_kw))
+                if m_key == "all":
+                    btn.update_style(**(active_kw if is_all else neutral_kw))
+                else:
+                    is_act = (not is_all) and (m_key in active_types)
+                    btn.update_style(**(active_kw if is_act else neutral_kw))
 
         if hasattr(self, "btn_step2_date_preset"):
             preset_labels = [
@@ -8749,6 +11452,7 @@ class App(tk.Tk):
         return bool(
             getattr(self, "step2_filter_chip", "all") != "all"
             or self.step2_search_var.get().strip()
+            or bool(getattr(self, "step2_active_types", set()))
             or getattr(self, "step2_file_filter_mode", "all") != "all"
             or getattr(self, "step2_only_onedrive", False)
             or self.step2_date_from_var.get().strip()
@@ -8765,6 +11469,7 @@ class App(tk.Tk):
             self._step2_filter_after_id = None
         self.step2_filter_chip = "all"
         self.step2_file_filter_mode = "all"
+        self.step2_active_types = set()
         self.step2_only_onedrive = False
         self._suppress_step2_filter_trace = True
         try:
@@ -8781,8 +11486,8 @@ class App(tk.Tk):
         self.update_step2_detail_filter_ui()
         self.apply_step2_filters()
 
-    @staticmethod
     def _matches_step2_detail_filters(
+        self,
         item: dict,
         file_mode: str,
         dt_from,
@@ -8820,17 +11525,35 @@ class App(tk.Tk):
             if not in_onedrive:
                 return False
 
-        if file_mode == "no_images":
-            if (not is_dir) and (ext_dot in IMAGE_EXTENSIONS):
-                return False
-        elif file_mode == "only_images":
-            if is_dir or (ext_dot not in IMAGE_EXTENSIONS):
-                return False
-        elif file_mode == "installers":
-            if is_dir or (ext_dot not in INSTALLER_EXTENSIONS):
-                return False
-        elif file_mode == "media":
-            if is_dir or (ext_dot not in MEDIA_EXTENSIONS):
+        active_types = getattr(self, "step2_active_types", set())
+        if active_types:
+            type_matched = False
+            if is_dir:
+                target_ordner = str(item.get("target_folder", "")).lower()
+                if "images" in active_types and "07_bilder" in target_ordner:
+                    type_matched = True
+                if "office" in active_types and any(k in target_ordner for k in ("finanzen", "wohnen", "vertraege", "arbeit")):
+                    type_matched = True
+                if "text_docs" in active_types and any(k in target_ordner for k in ("archiv", "eingang", "belege", "identitaet")):
+                    type_matched = True
+                if "media" in active_types and "09_videos" in target_ordner:
+                    type_matched = True
+                if "installers" in active_types and "08_programme" in target_ordner:
+                    type_matched = True
+                if "ordner" in target_ordner or "projekte" in target_ordner:
+                    type_matched = True
+            else:
+                if "images" in active_types and ext_dot in IMAGE_EXTENSIONS:
+                    type_matched = True
+                if "text_docs" in active_types and ext_dot in TEXT_DOC_EXTENSIONS:
+                    type_matched = True
+                if "office" in active_types and ext_dot in OFFICE_EXTENSIONS:
+                    type_matched = True
+                if "media" in active_types and ext_dot in MEDIA_EXTENSIONS:
+                    type_matched = True
+                if "installers" in active_types and ext_dot in INSTALLER_EXTENSIONS:
+                    type_matched = True
+            if not type_matched:
                 return False
 
         if dt_from is not None or dt_to is not None:
@@ -8846,13 +11569,13 @@ class App(tk.Tk):
             if dt_to is not None and mtime > dt_to:
                 return False
 
-        if min_bytes is not None and not is_dir:
+        if min_bytes is not None:
             size_b = item.get("size_bytes", -1)
             try:
-                if int(size_b) < min_bytes:
+                if int(size_b) >= 0 and int(size_b) < min_bytes:
                     return False
             except Exception:
-                return False
+                pass
 
         return True
 
@@ -8960,7 +11683,7 @@ class App(tk.Tk):
                 visible_rids.append(rid)
 
         if hasattr(self, "step2_chip_buttons"):
-            neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+            neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
             active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
             for c_key, c_lbl in getattr(self, "_step2_chip_defs", []):
                 btn = self.step2_chip_buttons.get(c_key)
@@ -8973,7 +11696,7 @@ class App(tk.Tk):
             if has_active_filter:
                 self.btn_step2_filter_reset.update_style(bg="#eff6ff", fg="#1d4ed8", hover_bg="#dbeafe", border_color="#93c5fd", font=("Segoe UI", 9, "bold"))
             else:
-                self.btn_step2_filter_reset.update_style(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+                self.btn_step2_filter_reset.update_style(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
 
         visible_set = set(visible_rids)
         current_visible = list(self.tree.get_children(""))
@@ -9060,6 +11783,7 @@ class App(tk.Tk):
             display_name,
             item["ext"],
             item.get("size_str", "—"),
+            item.get("items_count_str", "—"),
             dup_str,
             cat_str,
             target_str,
@@ -9078,7 +11802,7 @@ class App(tk.Tk):
         copy_txt = f"● {copy_count} Mitkopieren"
         del_txt = f"● {del_count} Gelöscht"
 
-        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
 
         # Farbliche Hervorhebung: Farben werden erst gesetzt wenn angewaehlt, dann BEIDE GLEICHFARBIG (Rechts wie Links)!
         if del_count == total_dups and total_dups > 0:
@@ -9207,10 +11931,10 @@ class App(tk.Tk):
             btn.update_style(
                 text=f"🎯 Original: {short} ▾",
                 bg="#eff6ff" if is_custom else "#ffffff",
-                fg="#1d4ed8" if is_custom else "#334155",
+                fg="#1d4ed8" if is_custom else "#1e293b",
                 hover_bg="#dbeafe" if is_custom else "#f1f5f9",
-                border_color="#93c5fd" if is_custom else "#cbd5e1",
-                font=("Segoe UI", 9, "bold") if is_custom else ("Segoe UI", 9),
+                border_color="#93c5fd" if is_custom else "#94a3b8",
+                font=("Segoe UI", 9, "bold"),
             )
 
     def open_dup_strategy_menu(self):
@@ -9327,6 +12051,274 @@ class App(tk.Tk):
             self.update_dup_counter()
             self.apply_step2_filters()
 
+# -------------------------------------------------------------
+    # DATEINAMEN EINKÜRZEN & UMBENENNEN (VARIANTE 1 & 3)
+    # -------------------------------------------------------------
+    def _get_target_rows_for_shortening(self) -> list[str]:
+        """Gibt die Ziel-Zeilen für Kürzungen zurück: Entweder markierte oder alle sichtbaren."""
+        sel = list(self.tree.selection())
+        if sel:
+            return sel
+        return list(self.tree.get_children())
+
+    def open_shorten_names_menu(self):
+        """Öffnet ein helles Fluent-Menü zum schnellen Einkürzen von Dateinamen."""
+        vis_count = len(self.tree.get_children(""))
+        sel_count = len(self.tree.selection())
+        if 0 < sel_count < vis_count:
+            scope_note = " – 1 markierte" if sel_count == 1 else f" – {sel_count} markierte"
+        else:
+            scope_note = " – Alle"
+
+        menu_items = [
+            {
+                "icon": "📖",
+                "label": f"Nur Autor & Haupttitel behalten{scope_note}",
+                "command": lambda: self.apply_name_shortening("subtitles", 2),
+            },
+            {
+                "icon": "📚",
+                "label": f"Bis Serie / Bandnummer behalten{scope_note}",
+                "command": lambda: self.apply_name_shortening("subtitles", 3),
+            },
+            {"kind": "sep"},
+            {
+                "icon": "📏",
+                "label": f"Auf max. 40 Zeichen begrenzen{scope_note}",
+                "command": lambda: self.apply_name_shortening("max_len", 40),
+            },
+            {
+                "icon": "📏",
+                "label": f"Auf max. 50 Zeichen begrenzen{scope_note}",
+                "command": lambda: self.apply_name_shortening("max_len", 50),
+            },
+            {
+                "icon": "📏",
+                "label": f"Auf max. 60 Zeichen begrenzen{scope_note}",
+                "command": lambda: self.apply_name_shortening("max_len", 60),
+            },
+            {
+                "icon": "📏",
+                "label": f"Auf max. 80 Zeichen begrenzen{scope_note}",
+                "command": lambda: self.apply_name_shortening("max_len", 80),
+            },
+            {"kind": "sep"},
+            {
+                "icon": "🔤",
+                "label": f"Unterstriche „_“ durch Leerzeichen ersetzen{scope_note}",
+                "command": lambda: self.apply_name_shortening("clean_underscores"),
+            },
+            {
+                "icon": "rename",
+                "label": "Länge, Trenner & Ersetzen anpassen…",
+                "command": self.open_custom_shorten_dialog,
+            },
+            {"kind": "sep"},
+            {
+                "icon": "refresh",
+                "label": f"Auf Original-Dateinamen zurücksetzen{scope_note}",
+                "shortcut": "Strg+Z",
+                "command": self.reset_renamed_names,
+            },
+        ]
+        btn = getattr(self, "btn_shorten_names", None)
+        if btn is not None and btn.winfo_exists():
+            x = btn.winfo_rootx()
+            y = btn.winfo_rooty() + btn.winfo_height() + 2
+        else:
+            x = self.winfo_rootx() + 140
+            y = self.winfo_rooty() + 140
+        self._open_fluent_popup(menu_items, x, y)
+
+    def apply_name_shortening(self, mode: str, param=None, target_rids=None):
+        """Wendet eine Kürzungsfunktion auf die angegebenen oder aktiven Zeilen an."""
+        if target_rids is None:
+            target_rids = self._get_target_rows_for_shortening()
+        if not target_rids:
+            self.show_notice("Keine Dateien", "Es sind keine Dateien in der Vorschau vorhanden.")
+            return
+
+        changed = 0
+        for rid in target_rids:
+            it = self.preview_items.get(rid)
+            if not it or it.get("action") == "Gelöscht":
+                continue
+            cur_name = it.get("name", "")
+            if "orig_name" not in it:
+                it["orig_name"] = cur_name
+
+            if mode == "subtitles":
+                d = param if isinstance(param, int) else 2
+                new_name = shorten_filename_subtitles(cur_name, d)
+            elif mode == "max_len":
+                if isinstance(param, (tuple, list)) and len(param) >= 2:
+                    m, wb = int(param[0]), bool(param[1])
+                else:
+                    m, wb = (param if isinstance(param, int) else 50), True
+                new_name = shorten_filename_max_length(cur_name, m, break_on_word=wb)
+            elif mode == "clean_underscores":
+                new_name = clean_filename_underscores(cur_name)
+            elif mode == "replace":
+                f, w = param if isinstance(param, (tuple, list)) else ("", "")
+                new_name = cur_name.replace(f, w) if f else cur_name
+            else:
+                new_name = cur_name
+
+            cleaned = clean_windows_filename(new_name)
+            # Endung erhalten falls noetig
+            if not it.get("is_dir"):
+                p_cur = Path(cur_name)
+                ext = p_cur.suffix
+                if ext and not cleaned.lower().endswith(ext.lower()):
+                    cleaned += ext
+
+            if cleaned and cleaned != cur_name:
+                it["name"] = cleaned
+                self.update_row_display(rid)
+                changed += 1
+
+        if changed > 0:
+            if hasattr(self, "_update_preview_pane_selection"):
+                self._update_preview_pane_selection()
+            self.show_notice("Dateinamen gekürzt", f"{changed} von {len(target_rids)} Dateinamen wurden erfolgreich angepasst.")
+        else:
+            self.show_notice("Keine Änderung", "Die gewählte Kürzungsregel hat bei den ausgewählten Dateien keine Namen verändert.")
+
+    def reset_renamed_names(self, target_rids=None):
+        """Setzt die Dateinamen der ausgewaehlten Zeilen auf ihren urspruenglichen Zustand zurueck."""
+        if target_rids is None:
+            target_rids = self._get_target_rows_for_shortening()
+        if not target_rids:
+            return
+
+        reset_count = 0
+        for rid in target_rids:
+            it = self.preview_items.get(rid)
+            if not it:
+                continue
+            orig = it.get("orig_name")
+            if orig and it.get("name") != orig:
+                it["name"] = orig
+                self.update_row_display(rid)
+                reset_count += 1
+
+        if reset_count > 0:
+            if hasattr(self, "_update_preview_pane_selection"):
+                self._update_preview_pane_selection()
+            self.show_notice("Dateinamen zurückgesetzt", f"{reset_count} Dateinamen wurden auf das Original zurückgesetzt.")
+        else:
+            self.show_notice("Bereits Original", "Alle ausgewählten Dateien besitzen bereits ihren ursprünglichen Dateinamen.")
+
+    def reset_to_original_preview(self):
+        """Setzt alle Dateinamen, geaenderte Zielordner und Schritt-2-Filter sofort auf die Original-Vorschau zurueck."""
+        if not self.preview_items:
+            return
+
+        names_reset = 0
+        targets_reset = 0
+        actions_reset = 0
+        for rid, it in self.preview_items.items():
+            if not it or it.get("action") == "Gelöscht":
+                continue
+            changed = False
+            orig_name = it.get("orig_name")
+            if orig_name and it.get("name") != orig_name:
+                it["name"] = orig_name
+                names_reset += 1
+                changed = True
+            orig_target = it.get("orig_target_sub")
+            orig_label = it.get("orig_label")
+            if orig_target is not None and (it.get("target_sub") != orig_target or it.get("label") != orig_label):
+                it["target_sub"] = orig_target
+                if orig_label is not None:
+                    it["label"] = orig_label
+                targets_reset += 1
+                changed = True
+            orig_action = it.get("orig_action")
+            if orig_action and it.get("action") != orig_action:
+                it["action"] = orig_action
+                actions_reset += 1
+                changed = True
+            if changed:
+                self.update_row_display(rid)
+
+        had_filters = self._has_active_step2_filters()
+        if had_filters:
+            self.clear_step2_filters()
+        else:
+            self.update_dup_counter()
+            self._update_step2_summary()
+
+        if hasattr(self, "_update_preview_pane_selection"):
+            self._update_preview_pane_selection()
+
+        parts = []
+        if names_reset:
+            parts.append(f"{names_reset} Dateinamen")
+        if targets_reset:
+            parts.append(f"{targets_reset} Zielordner")
+        if actions_reset and not targets_reset:
+            parts.append(f"{actions_reset} Aktionen")
+        if had_filters:
+            parts.append("Filter")
+
+        if parts:
+            self.show_notice(
+                "Original-Vorschau wiederhergestellt",
+                f"Zurückgesetzt: {', '.join(parts)}.",
+            )
+        else:
+            self.show_notice(
+                "Bereits Original-Vorschau",
+                "Alle Dateinamen, Zielordner und Filter entsprechen bereits der Original-Vorschau.",
+            )
+
+    def start_rename_selected_file(self, row_id=None):
+        """Startet die Umbenennung fuer die ausgewaehlte Datei (F2 oder Rechtsklick)."""
+        if row_id is None:
+            sel = list(self.tree.selection())
+            if not sel:
+                return "break"
+            if len(sel) > 1:
+                self.open_custom_shorten_dialog()
+                return "break"
+            row_id = sel[0]
+
+        it = self.preview_items.get(row_id)
+        if not it:
+            return "break"
+
+        dlg = SingleFileRenameDialog(
+            self,
+            it,
+            on_success=lambda new_name, r=row_id: self._on_single_file_renamed(r, new_name)
+        )
+        self.wait_window(dlg)
+        return "break"
+
+    def _on_single_file_renamed(self, row_id: str, new_name: str):
+        it = self.preview_items.get(row_id)
+        if not it:
+            return
+        if "orig_name" not in it:
+            it["orig_name"] = it.get("name", "")
+        old_name = it.get("name", "")
+        it["name"] = new_name
+        self.update_row_display(row_id)
+        if hasattr(self, "_update_preview_pane_selection"):
+            self._update_preview_pane_selection()
+        if old_name != new_name:
+            self.show_notice("Dateiname geändert", f"Neuer Name: {new_name}")
+
+    def open_custom_shorten_dialog(self):
+        """Oeffnet den erweiterten Kuerzungsdialog fuer markierte oder alle Dateien."""
+        target_rids = self._get_target_rows_for_shortening()
+        if not target_rids:
+            self.show_notice("Keine Dateien", "Es sind keine Dateien in der Vorschau vorhanden.")
+            return
+        dlg = CustomShortenDialog(self, target_rids)
+        self.wait_window(dlg)
+
     def open_custom_rules_manager(self):
         dlg = CustomRulesDialog(self)
         self.wait_window(dlg)
@@ -9410,46 +12402,366 @@ class App(tk.Tk):
             out_rids.extend(updated_order)
         return len(updated_rids)
 
+    def add_recent_target_folder(self, path: str, pinned: bool = False, label: str = "", keep_slot1: bool = False):
+        """Fügt einen Zielordner zur Schnellauswahl (max. 5 Plätze, MRU + Fixierung) hinzu."""
+        raw_p = str(path or "").strip()
+        if not raw_p:
+            return
+        norm_p = os.path.normpath(raw_p) if os.path.isabs(raw_p) else raw_p.replace("\\", "/")
+        lbl = str(label or "").strip() or os.path.basename(norm_p.rstrip("\\/")) or norm_p
+
+        if not hasattr(self, "recent_target_folders"):
+            self.recent_target_folders = []
+
+        def _norm_cmp(s: str) -> str:
+            t = str(s or "").strip()
+            return (os.path.normpath(t) if os.path.isabs(t) else t.replace("\\", "/")).lower()
+
+        existing_idx = None
+        cmp_new = _norm_cmp(norm_p)
+        for i, item in enumerate(self.recent_target_folders):
+            if _norm_cmp(item.get("path", "")) == cmp_new:
+                existing_idx = i
+                break
+
+        if existing_idx is not None:
+            old = self.recent_target_folders[existing_idx]
+            is_pinned = old.get("pinned", False) or pinned
+            cur_lbl = lbl if lbl != norm_p else (old.get("label") or lbl)
+            updated_entry = {
+                "path": norm_p,
+                "pinned": is_pinned,
+                "label": cur_lbl,
+                "timestamp": time.time(),
+            }
+            if keep_slot1:
+                self.recent_target_folders[existing_idx] = updated_entry
+            else:
+                self.recent_target_folders.pop(existing_idx)
+                self.recent_target_folders.insert(0, updated_entry)
+        else:
+            new_entry = {
+                "path": norm_p,
+                "pinned": pinned,
+                "label": lbl,
+                "timestamp": time.time(),
+            }
+            if keep_slot1 and len(self.recent_target_folders) >= 1:
+                self.recent_target_folders.append(new_entry)
+            else:
+                self.recent_target_folders.insert(0, new_entry)
+
+        # Max 5 Plätze: älteste nicht fixierte Einträge zuerst verwerfen (Slot 0 schützen)
+        while len(self.recent_target_folders) > 5:
+            dropped = False
+            for i in range(len(self.recent_target_folders) - 1, 0, -1):
+                if not self.recent_target_folders[i].get("pinned", False):
+                    self.recent_target_folders.pop(i)
+                    dropped = True
+                    break
+            if not dropped:
+                self.recent_target_folders.pop()
+
+        self.update_recent_target_buttons()
+        self._save_app_state()
+
+    def toggle_pin_recent_target(self, path: str) -> bool:
+        """Fixiert einen Ordner in der Schnellauswahl oder hebt die Fixierung auf."""
+        raw_p = str(path or "").strip()
+        cmp_p = (os.path.normpath(raw_p) if os.path.isabs(raw_p) else raw_p.replace("\\", "/")).lower()
+        new_pinned = False
+        for item in getattr(self, "recent_target_folders", []):
+            it_p = str(item.get("path", "")).strip()
+            it_cmp = (os.path.normpath(it_p) if os.path.isabs(it_p) else it_p.replace("\\", "/")).lower()
+            if it_cmp == cmp_p:
+                item["pinned"] = not item.get("pinned", False)
+                new_pinned = item["pinned"]
+                break
+        self.update_recent_target_buttons()
+        self._save_app_state()
+        return new_pinned
+
+    def remove_recent_target_folder(self, path: str):
+        """Entfernt einen Ordner aus der 5-Slot-Schnellauswahl."""
+        raw_p = str(path or "").strip()
+        cmp_p = (os.path.normpath(raw_p) if os.path.isabs(raw_p) else raw_p.replace("\\", "/")).lower()
+        cur_list = getattr(self, "recent_target_folders", [])
+        self.recent_target_folders = [
+            it for it in cur_list
+            if (os.path.normpath(str(it.get("path", "")).strip()) if os.path.isabs(str(it.get("path", "")).strip()) else str(it.get("path", "")).strip().replace("\\", "/")).lower() != cmp_p
+        ]
+        self.update_recent_target_buttons()
+        self._save_app_state()
+
+    def update_recent_target_buttons(self):
+        """Aktualisiert die Schnellauswahl-Buttons für die letzten Zielordner in Toolbar und Schritt 1."""
+        recent = getattr(self, "recent_target_folders", [])
+        if hasattr(self, "btn_quick_last_target"):
+            if recent and len(recent) > 0:
+                first = recent[0]
+                lbl = first.get("label") or os.path.basename(first["path"].rstrip("\\/")) or first["path"]
+                short_lbl = lbl if len(lbl) <= 16 else lbl[:14] + "…"
+                pinned_sym = "📌 " if first.get("pinned") else ""
+                self.btn_quick_last_target.update_style(
+                    text=f"⚡ {pinned_sym}Zuletzt: {short_lbl}",
+                    bg="#eff6ff",
+                    fg="#1d4ed8",
+                    hover_bg="#dbeafe",
+                    border_color="#93c5fd",
+                )
+                attach_tooltip(
+                    self.btn_quick_last_target,
+                    f"1-Klick: Zielordner sofort auf „{lbl}“ umstellen\n(gilt für markierte Einträge – oder für alle, wenn nichts markiert ist)\n{first['path']}",
+                )
+            else:
+                self.btn_quick_last_target.update_style(
+                    text="⚡ Zuletzt: —",
+                    bg="#f8fafc",
+                    fg="#94a3b8",
+                    hover_bg="#f8fafc",
+                    border_color="#e2e8f0",
+                )
+                attach_tooltip(self.btn_quick_last_target, "Noch kein letzter Zielordner gemerkt")
+
+    def quick_apply_last_target(self):
+        """Wendet den zuletzt genutzten Zielordner mit 1 Klick auf alle (oder markierte) Zeilen an."""
+        recent = getattr(self, "recent_target_folders", [])
+        if not recent:
+            self.assign_target_folder_selected()
+            return
+        first = recent[0]
+        self.quick_assign_target_to_preview(first["path"], first.get("label", ""))
+
+    def open_assign_target_menu(self):
+        """Öffnet ein modernes Fluent-Menü mit den letzten 5 Zielordnern sowie Dialog-Aufruf."""
+        recent = getattr(self, "recent_target_folders", [])
+        all_active = [r for r, it in self.preview_items.items() if it.get("action") != "Gelöscht"]
+        sel_rids = [r for r in self.tree.selection() if r in self.preview_items and self.preview_items[r].get("action") != "Gelöscht"]
+        scope_hint = f"{len(sel_rids)} markierte" if (sel_rids and len(sel_rids) < len(all_active)) else f"alle {len(all_active)}"
+
+        menu_items = [
+            {
+                "icon": "folder",
+                "label": "Zielordner & Schnellauswahl öffnen…",
+                "command": self.assign_target_folder_selected,
+            },
+            {"kind": "sep"},
+            {
+                "kind": "header",
+                "label": f"SCHNELLAUSWAHL · 1-KLICK FÜR {scope_hint.upper()}",
+            },
+        ]
+
+        if not recent:
+            menu_items.append({
+                "icon": "info",
+                "label": "Noch keine Ordner gespeichert – Dialog öffnen…",
+                "command": self.assign_target_folder_selected,
+            })
+        else:
+            for idx, slot in enumerate(recent[:5]):
+                p = slot["path"]
+                lbl = slot.get("label") or os.path.basename(p.rstrip("\\/")) or p
+                pinned = bool(slot.get("pinned", False))
+                ico = "pin" if pinned else ("clock" if idx == 0 else "folder")
+                tag_right = "Zuletzt" if idx == 0 else ("Fixiert" if pinned else "")
+                disp_p = p if len(p) <= 30 else p[:12] + "…" + p[-15:]
+                item_label = f"{lbl}  ·  {disp_p}" if lbl.lower() != disp_p.lower() else disp_p
+                menu_items.append({
+                    "icon": ico,
+                    "label": item_label,
+                    "shortcut": tag_right,
+                    "command": lambda sp=p, sl=lbl: self.quick_assign_target_to_preview(sp, sl),
+                })
+
+        menu_items.append({"kind": "sep"})
+        menu_items.append({
+            "kind": "header",
+            "label": "ZIELORDNER IM DIALOG ÄNDERN",
+        })
+        menu_items.append({
+            "icon": "check",
+            "label": f"Für alle {len(all_active)} Einträge festlegen…",
+            "command": lambda: self.assign_target_folder_selected(list(all_active)),
+        })
+        if sel_rids and len(sel_rids) < len(all_active):
+            menu_items.append({
+                "icon": "check",
+                "label": f"Nur für {len(sel_rids)} markierte Einträge festlegen…",
+                "command": lambda: self.assign_target_folder_selected(list(sel_rids)),
+            })
+
+        btn = getattr(self, "btn_assign_target", None)
+        if btn is not None and btn.winfo_exists():
+            x = btn.winfo_rootx()
+            y = btn.winfo_rooty() + btn.winfo_height() + 2
+        else:
+            x = self.winfo_rootx() + 100
+            y = self.winfo_rooty() + 100
+        self._open_fluent_popup(menu_items, x, y)
+
+    def quick_assign_target_to_preview(self, target_path: str, label: str = "", apply_to_all: bool | None = None):
+        """Weist allen oder markierten Zeilen in Schritt 2 sofort einen Zielordner zu (1-Klick ohne Dialog)."""
+        all_active_rids = [r for r, it in self.preview_items.items() if it.get("action") != "Gelöscht"]
+        sel_rids = [r for r in self.tree.selection() if r in self.preview_items and self.preview_items[r].get("action") != "Gelöscht"]
+
+        if not all_active_rids:
+            self.show_notice("Keine Dateien", "Es sind keine aktiven Dateien in der Vorschau vorhanden.", kind="info")
+            return
+
+        if apply_to_all is None:
+            target_rids = all_active_rids if not sel_rids else sel_rids
+        elif apply_to_all:
+            target_rids = all_active_rids
+        else:
+            target_rids = sel_rids or all_active_rids
+
+        clean_target = os.path.normpath(target_path) if os.path.isabs(target_path) else target_path.replace("\\", "/")
+        clean_label = label or os.path.basename(clean_target.rstrip("/\\")) or clean_target
+
+        self.add_recent_target_folder(clean_target, label=clean_label)
+
+        run_rids: list[str] = []
+        updated_count = self._apply_target_assignment(
+            target_rids,
+            target_sub=clean_target,
+            label=clean_label,
+            save_rule=False,
+            keyword="",
+            apply_to_preview=False,
+            forced_action_mode=None,
+            out_rids=run_rids,
+        )
+        self._save_app_state()
+
+        scope_str = f"alle {updated_count} Einträge" if len(target_rids) == len(all_active_rids) else f"{updated_count} markierte Einträge"
+        self.show_notice(
+            "Zielordner zugewiesen",
+            f"Zielordner für {scope_str} umgestellt auf:",
+            clean_target,
+            kind="success",
+            auto_close_ms=2500,
+        )
+
+    def open_step1_recent_targets_menu(self):
+        """Öffnet in Schritt 1 ein modernes Fluent-Menü mit den letzten Zielordnern."""
+        recent = getattr(self, "recent_target_folders", [])
+        menu_items = [
+            {
+                "kind": "header",
+                "label": "SCHNELLAUSWAHL · LETZTE ZIELORDNER",
+            }
+        ]
+        if not recent:
+            menu_items.append({
+                "icon": "info",
+                "label": "Noch keine Zielordner in Historie",
+                "command": self.browse_target,
+            })
+        else:
+            for idx, slot in enumerate(recent[:5]):
+                p = slot["path"]
+                if not os.path.isabs(p):
+                    continue
+                lbl = slot.get("label") or os.path.basename(p.rstrip("\\/")) or p
+                pinned = bool(slot.get("pinned", False))
+                ico = "pin" if pinned else ("clock" if idx == 0 else "folder")
+                tag_right = "Zuletzt" if idx == 0 else ("Fixiert" if pinned else "")
+                disp_p = p if len(p) <= 34 else p[:14] + "…" + p[-17:]
+                item_label = f"{lbl}  ·  {disp_p}" if lbl.lower() != disp_p.lower() else disp_p
+                menu_items.append({
+                    "icon": ico,
+                    "label": item_label,
+                    "shortcut": tag_right,
+                    "command": lambda sp=p: self._set_target_dir_from_recent(sp),
+                })
+            if len(menu_items) == 1:
+                menu_items.append({
+                    "icon": "folder",
+                    "label": "Zielordner auf PC wählen…",
+                    "command": self.browse_target,
+                })
+
+        btn = getattr(self, "btn_target_recent", None)
+        if btn is not None and btn.winfo_exists():
+            x = btn.winfo_rootx()
+            y = btn.winfo_rooty() + btn.winfo_height() + 2
+        else:
+            x = self.winfo_rootx() + 100
+            y = self.winfo_rooty() + 100
+        self._open_fluent_popup(menu_items, x, y)
+
+    def _set_target_dir_from_recent(self, path: str):
+        """Setzt das Zielverzeichnis in Schritt 1 direkt aus der Schnellauswahl."""
+        self.target_dir.set(os.path.normpath(path))
+        self.target_mode = "custom"
+        self.update_target_mode_ui()
+        self.add_recent_target_folder(path)
+        self._save_app_state()
+
     def assign_target_folder_selected(self, row_ids: list[str] | None = None):
-        """Oeffnet den Zielordner-Dialog fuer eine oder mehrere markierte Zeilen in Schritt 2."""
+        """Oeffnet den Zielordner-Dialog fuer eine oder mehrere Zeilen in Schritt 2."""
+        all_active_rids = [rid for rid, it in self.preview_items.items() if it.get("action") != "Gelöscht"]
+        if not all_active_rids:
+            self.show_notice("Keine Dateien", "Es sind keine aktiven Dateien in der Vorschau vorhanden.", kind="info")
+            return
+
         target_rids = list(row_ids) if row_ids is not None else list(self.tree.selection())
-        active_items = []
         valid_rids = []
         for rid in target_rids:
             item = self.preview_items.get(rid)
             if item and item.get("action") != "Gelöscht":
-                active_items.append(item)
                 valid_rids.append(rid)
 
+        # Wenn nichts markiert war, standardmässig ALLE aktiven Zeilen vorschlagen!
         if not valid_rids:
-            self.show_notice(
-                "Auswahl erforderlich",
-                "Bitte wählen Sie zuerst mindestens eine nicht gelöschte Datei in der Tabelle aus.",
-                "Sie können auch mehrere Zeilen mit Strg oder Umschalt markieren.",
-                kind="info",
-            )
-            return
+            valid_rids = list(all_active_rids)
+            is_all_default = True
+        else:
+            is_all_default = (len(valid_rids) == len(all_active_rids))
 
-        dlg = TargetFolderDialog(self, active_items)
+        active_items = [self.preview_items[r] for r in valid_rids if r in self.preview_items]
+        if not active_items:
+            active_items = [self.preview_items[all_active_rids[0]]]
+
+        dlg = TargetFolderDialog(self, active_items, total_active_count=len(all_active_rids))
         self.wait_window(dlg)
         if not dlg.result:
             return
 
         res = dlg.result
         exec_mode = res.get("execute_mode")
+        apply_all = bool(res.get("apply_to_all", is_all_default))
+        target_rids_to_use = all_active_rids if apply_all else valid_rids
+
+        clean_target = res["target_sub"]
+        clean_label = res["label"]
+        self.add_recent_target_folder(clean_target, label=clean_label)
+
         run_rids: list[str] = []
-        self._apply_target_assignment(
-            valid_rids,
-            target_sub=res["target_sub"],
-            label=res["label"],
+        updated_count = self._apply_target_assignment(
+            target_rids_to_use,
+            target_sub=clean_target,
+            label=clean_label,
             save_rule=res["save_rule"],
             keyword=res["keyword"],
             apply_to_preview=res["apply_to_preview"],
             forced_action_mode=exec_mode,
             out_rids=run_rids,
         )
+        self._save_app_state()
+
         if exec_mode in ("copy", "move") and run_rids:
             self.execute_sort(target_row_ids=run_rids, scope_label="aus Auswahl", override_action_mode=exec_mode)
+        else:
+            scope_str = f"alle {updated_count} Einträge" if len(target_rids_to_use) == len(all_active_rids) else f"{updated_count} markierte Einträge"
+            self.show_notice(
+                "Zielordner zugewiesen",
+                f"Zielordner für {scope_str} erfolgreich umgestellt auf:",
+                clean_target,
+                kind="success",
+                auto_close_ms=2500,
+            )
 
     def delete_single_file(self, row_id: str):
         """Loescht eine einzelne Datei."""
@@ -9832,7 +13144,7 @@ class App(tk.Tk):
         orig_btn_frame = tk.Frame(box_orig, bg="#ffffff")
         orig_btn_frame.pack(anchor="w", pady=(10, 0))
         ModernRoundedButton(orig_btn_frame, "📄 Standard-App", command=lambda: self.open_file_directly(orig_item["src_path"]), bg="#e0f2fe", fg="#0369a1", hover_bg="#bae6fd", border_color="#7dd3fc", font=("Segoe UI", 9, "bold"), r=6, padx=10, pady=4).pack(side="left", padx=(0, 6))
-        ModernRoundedButton(orig_btn_frame, "📂 Im Explorer", command=lambda: self.open_file_folder(orig_item["src_path"]), bg="#f8fafc", fg="#334155", hover_bg="#e2e8f0", border_color="#cbd5e1", font=("Segoe UI", 9), r=6, padx=10, pady=4).pack(side="left")
+        ModernRoundedButton(orig_btn_frame, "📂 Im Explorer", command=lambda: self.open_file_folder(orig_item["src_path"]), bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"), r=6, padx=10, pady=4).pack(side="left")
 
         # Rechte Box: Duplikat (aktualisierbar für Geschwister-Navigation)
         box_dup = tk.Frame(content_box, bg="#ffffff", highlightthickness=1, highlightbackground="#cbd5e1", padx=14, pady=12)
@@ -9862,7 +13174,7 @@ class App(tk.Tk):
         dup_btn_frame = tk.Frame(box_dup, bg="#ffffff")
         dup_btn_frame.pack(anchor="w", pady=(10, 0))
         ModernRoundedButton(dup_btn_frame, "📄 Standard-App", command=lambda: self.open_file_directly(state["dup_item"]["src_path"]), bg="#e0f2fe", fg="#0369a1", hover_bg="#bae6fd", border_color="#7dd3fc", font=("Segoe UI", 9, "bold"), r=6, padx=10, pady=4).pack(side="left", padx=(0, 6))
-        ModernRoundedButton(dup_btn_frame, "📂 Im Explorer", command=lambda: self.open_file_folder(state["dup_item"]["src_path"]), bg="#f8fafc", fg="#334155", hover_bg="#e2e8f0", border_color="#cbd5e1", font=("Segoe UI", 9), r=6, padx=10, pady=4).pack(side="left")
+        ModernRoundedButton(dup_btn_frame, "📂 Im Explorer", command=lambda: self.open_file_folder(state["dup_item"]["src_path"]), bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"), r=6, padx=10, pady=4).pack(side="left")
 
         def select_sibling(new_idx: int):
             if not sibling_rids:
@@ -9917,7 +13229,7 @@ class App(tk.Tk):
         ModernRoundedButton(btn_bar, "📋 Mitkopieren", command=on_dlg_copy, bg="#059669", fg="#ffffff", hover_bg="#047857", font=("Segoe UI", 9, "bold"), r=8, padx=12, pady=6).pack(side="left", padx=(0, 6))
         ModernRoundedButton(btn_bar, "⛔ Überspringen", command=on_dlg_skip, bg="#ea580c", fg="#ffffff", hover_bg="#c2410c", font=("Segoe UI", 9, "bold"), r=8, padx=12, pady=6).pack(side="left", padx=(0, 6))
         ModernRoundedButton(btn_bar, "🗑 In Papierkorb löschen", command=on_dlg_del, bg="#dc2626", fg="#ffffff", hover_bg="#b91c1c", font=("Segoe UI", 9, "bold"), r=8, padx=12, pady=6).pack(side="left", padx=(0, 6))
-        ModernRoundedButton(btn_bar, "Schließen", command=dlg.destroy, bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9), r=8, padx=12, pady=6).pack(side="right")
+        ModernRoundedButton(btn_bar, "Schließen", command=dlg.destroy, bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"), r=8, padx=12, pady=6).pack(side="right")
 
     def open_selected_file(self):
         """Oeffnet die in der Baum-Tabelle markierte(n) Datei(en) in der Windows-Standard-App."""
@@ -10060,80 +13372,97 @@ class App(tk.Tk):
         self.lbl_step3_hint.pack(fill="x")
 
         self.step3_btn_box = tk.Frame(self.frame_step3, bg="#f8fafc")
-        self.step3_btn_box.pack(fill="x", pady=(4, 0))
+        self.step3_btn_box.pack(fill="x", pady=(8, 0))
+        self.step3_btn_box.columnconfigure(0, weight=1, uniform="s3side")
+        self.step3_btn_box.columnconfigure(1, weight=0)
+        self.step3_btn_box.columnconfigure(2, weight=1, uniform="s3side")
+
+        step3_nav_h = tkfont.Font(font=("Segoe UI", 9, "bold")).metrics("linespace") * 2 + 5 * 2 + 4
+
+        self.step3_left = tk.Frame(self.step3_btn_box, bg="#f8fafc")
+        self.step3_left.grid(row=0, column=0, sticky="w")
+
+        self.btn_step3_back_to_table = ModernRoundedButton(
+            self.step3_left,
+            "⬅ Zurück zur Vorschau",
+            command=self.show_step2,
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=10,
+            padx=16,
+            pady=8,
+            min_height=step3_nav_h,
+        )
+        self.btn_step3_back_to_table.pack(side="left", padx=(0, 10))
 
         self.btn_step3_undo = ModernRoundedButton(
-            self.step3_btn_box,
+            self.step3_left,
             "↺ Letzte Aktion rückgängig",
             command=self.revert_last_transaction,
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=14,
-            pady=7,
+            bg="#eff6ff",
+            fg="#1d4ed8",
+            hover_bg="#dbeafe",
+            border_color="#93c5fd",
+            font=("Segoe UI", 9, "bold"),
+            r=10,
+            padx=16,
+            pady=8,
+            min_height=step3_nav_h,
         )
-        self.btn_step3_undo.pack(side="left", padx=(0, 10))
+        self.btn_step3_undo.pack(side="left")
 
         self.btn_step3_again = ModernRoundedButton(
             self.step3_btn_box,
-            "Weiteren Ordner sortieren",
+            "⬅ Zurück zur Ordnerauswahl",
             command=self.show_step1,
-            bg="#ffffff",
-            fg="#475569",
-            hover_bg="#f1f5f9",
-            border_color="#cbd5e1",
-            font=("Segoe UI", 9),
-            r=8,
-            padx=14,
-            pady=7,
-        )
-        self.btn_step3_again.pack(side="left", padx=(0, 10))
-
-        self.btn_step3_back_to_table = ModernRoundedButton(
-            self.step3_btn_box,
-            "⬅ Zurück zur Vorschau-Tabelle",
-            command=self.show_step2,
-            bg="#ffffff",
-            fg="#2563eb",
-            hover_bg="#eff6ff",
-            border_color="#93c5fd",
-            font=("Segoe UI", 9, "bold"),
-            r=8,
-            padx=14,
-            pady=7,
-        )
-
-        self.btn_step3_open = ModernRoundedButton(
-            self.step3_btn_box,
-            "Zielordner im Explorer öffnen",
-            command=self.open_target_explorer,
-            bg="#2563eb",
+            bg="#059669",
             fg="#ffffff",
-            hover_bg="#1d4ed8",
-            font=("Segoe UI", 9, "bold"),
-            r=8,
-            padx=16,
-            pady=7,
+            hover_bg="#047857",
+            border_color=None,
+            font=("Segoe UI", 10, "bold"),
+            r=10,
+            padx=22,
+            pady=8,
+            min_height=step3_nav_h,
         )
-        self.btn_step3_open.pack(side="right")
+        self.btn_step3_again.grid(row=0, column=1, padx=14)
+
+        self.step3_right = tk.Frame(self.step3_btn_box, bg="#f8fafc")
+        self.step3_right.grid(row=0, column=2, sticky="e")
 
         self.btn_step3_search_app = ModernRoundedButton(
-            self.step3_btn_box,
+            self.step3_right,
             "🔍 In Datei-Suchmaschine öffnen",
             command=lambda: self.open_in_suchmaschine(getattr(self, "_last_explorer_target", "") or self.target_dir.get()),
             bg="#0f766e",
             fg="#ffffff",
             hover_bg="#115e59",
             font=("Segoe UI", 9, "bold"),
-            r=8,
-            padx=14,
-            pady=7,
+            r=10,
+            padx=16,
+            pady=8,
+            min_height=step3_nav_h,
         )
-        self.btn_step3_search_app.pack(side="right", padx=(0, 8))
+        self.btn_step3_search_app.pack(side="left", padx=(0, 10))
         attach_tooltip(self.btn_step3_search_app, "Zielordner als Favorit speichern & direkt in Datei-Suchmaschine Pro öffnen (startet bei Bedarf automatisch)")
+
+        self.btn_step3_open = ModernRoundedButton(
+            self.step3_right,
+            "Zielordner im Explorer öffnen",
+            command=self.open_target_explorer,
+            bg="#2563eb",
+            fg="#ffffff",
+            hover_bg="#1d4ed8",
+            font=("Segoe UI", 10, "bold"),
+            r=10,
+            padx=18,
+            pady=10,
+            min_height=step3_nav_h,
+        )
+        self.btn_step3_open.pack(side="left")
 
     # -------------------------------------------------------------
     # Logik & Navigation
@@ -10194,6 +13523,32 @@ class App(tk.Tk):
         self.target_mode = "usb"
         self.target_dir.set(usb_dir)
         self.update_target_mode_ui()
+        self.add_recent_target_folder(usb_dir, label="USB_Stick")
+        self._save_app_state()
+
+    def set_target_onedrive(self):
+        roots = get_onedrive_roots()
+        accounts = get_onedrive_accounts()
+        od_path = None
+        if accounts.get("personal"):
+            od_path = accounts["personal"][0][1]
+        elif roots:
+            od_path = roots[0]
+        elif accounts.get("business"):
+            od_path = accounts["business"][0][1]
+
+        if not od_path or not Path(od_path).exists():
+            self.show_notice(
+                "OneDrive nicht gefunden",
+                "Auf diesem PC wurde kein aktiver Microsoft OneDrive-Ordner gefunden.",
+                kind="warning",
+                auto_close_ms=4000,
+            )
+            return
+
+        self.target_mode = "onedrive"
+        self.target_dir.set(str(od_path))
+        self.update_target_mode_ui()
         self._save_app_state()
 
     def sync_target_mode_ui(self):
@@ -10203,6 +13558,13 @@ class App(tk.Tk):
             self.target_mode = "usb"
             self.update_target_mode_ui()
             return
+        if dest:
+            dest_norm = os.path.normpath(dest).lower()
+            roots = get_onedrive_roots()
+            if any(dest_norm == os.path.normpath(str(r)).lower() for r in roots):
+                self.target_mode = "onedrive"
+                self.update_target_mode_ui()
+                return
         if src and dest:
             try:
                 p_src = Path(src)
@@ -10224,7 +13586,7 @@ class App(tk.Tk):
     def update_target_mode_ui(self):
         if not hasattr(self, 'btn_target_adjacent') or not hasattr(self, 'btn_target_subfolder'):
             return
-        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
         active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
 
         buttons = {
@@ -10235,23 +13597,79 @@ class App(tk.Tk):
             buttons["same"] = self.btn_target_same
         if hasattr(self, "btn_target_usb"):
             buttons["usb"] = self.btn_target_usb
+        if hasattr(self, "btn_target_onedrive"):
+            buttons["onedrive"] = self.btn_target_onedrive
 
         for key, btn in buttons.items():
             btn.update_style(**(active_kw if self.target_mode == key else neutral_kw))
 
-    def set_file_filter_mode(self, mode: str):
-        self.file_filter_mode.set(mode)
+    def toggle_file_filter(self, category: str):
+        if category == "all":
+            self.filter_all_var.set(True)
+            self.filter_images_var.set(False)
+            self.filter_text_docs_var.set(False)
+            self.filter_office_var.set(False)
+            self.filter_media_var.set(False)
+            self.filter_installers_var.set(False)
+        else:
+            var_map = {
+                "images": self.filter_images_var,
+                "text_docs": self.filter_text_docs_var,
+                "office": self.filter_office_var,
+                "media": self.filter_media_var,
+                "installers": self.filter_installers_var,
+            }
+            if category in var_map:
+                cur = var_map[category].get()
+                var_map[category].set(not cur)
+
+                # Wenn mindestens ein spezifischer Filter aktiv ist, "all" ausschalten
+                if any(v.get() for v in var_map.values()):
+                    self.filter_all_var.set(False)
+                else:
+                    # Wenn alle abgewählt wurden, "all" automatisch wieder einschalten
+                    self.filter_all_var.set(True)
+
+        # Legacy-Variablen für Abwärtskompatibilität synchronisieren
+        if self.filter_all_var.get():
+            self.file_filter_mode.set("all")
+            self.include_installers_var.set(False)
+            self.include_media_var.set(False)
+        else:
+            self.include_installers_var.set(self.filter_installers_var.get())
+            self.include_media_var.set(self.filter_media_var.get())
+            if self.filter_images_var.get() and not (self.filter_text_docs_var.get() or self.filter_office_var.get() or self.filter_media_var.get() or self.filter_installers_var.get()):
+                self.file_filter_mode.set("only_images")
+            else:
+                self.file_filter_mode.set("custom")
+
         self.update_file_filter_ui()
         self._save_app_state()
+
+    def set_file_filter_mode(self, mode: str):
+        self.toggle_file_filter(mode)
 
     def update_file_filter_ui(self):
         if not hasattr(self, "filter_buttons"):
             return
-        active_mode = self.file_filter_mode.get()
-        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
         active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
-        for mode_key, btn in self.filter_buttons.items():
-            btn.update_style(**(active_kw if mode_key == active_mode else neutral_kw))
+
+        is_all = self.filter_all_var.get()
+        if "all" in self.filter_buttons:
+            self.filter_buttons["all"].update_style(**(active_kw if is_all else neutral_kw))
+
+        var_map = {
+            "images": self.filter_images_var,
+            "text_docs": self.filter_text_docs_var,
+            "office": self.filter_office_var,
+            "media": self.filter_media_var,
+            "installers": self.filter_installers_var,
+        }
+        for k, var in var_map.items():
+            if k in self.filter_buttons:
+                is_act = (not is_all) and var.get()
+                self.filter_buttons[k].update_style(**(active_kw if is_act else neutral_kw))
 
     def set_subfolder_mode(self, mode: str):
         if mode not in ("split", "whole", "ignore"):
@@ -10265,7 +13683,7 @@ class App(tk.Tk):
         if not hasattr(self, "subfolder_buttons"):
             return
         active_mode = self.subfolder_mode.get()
-        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
         active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
         for mode_key, btn in self.subfolder_buttons.items():
             btn.update_style(**(active_kw if mode_key == active_mode else neutral_kw))
@@ -10319,12 +13737,15 @@ class App(tk.Tk):
         self._save_app_state()
 
     def update_extra_type_ui(self):
-        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
         active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
+        is_all = bool(self.filter_all_var.get()) if hasattr(self, "filter_all_var") else False
         if hasattr(self, "btn_extra_installers"):
-            self.btn_extra_installers.update_style(**(active_kw if self.include_installers_var.get() else neutral_kw))
+            is_act = (not is_all) and bool(self.filter_installers_var.get() if hasattr(self, "filter_installers_var") else self.include_installers_var.get())
+            self.btn_extra_installers.update_style(**(active_kw if is_act else neutral_kw))
         if hasattr(self, "btn_extra_media"):
-            self.btn_extra_media.update_style(**(active_kw if self.include_media_var.get() else neutral_kw))
+            is_act = (not is_all) and bool(self.filter_media_var.get() if hasattr(self, "filter_media_var") else self.include_media_var.get())
+            self.btn_extra_media.update_style(**(active_kw if is_act else neutral_kw))
         if hasattr(self, "btn_extra_onedrive"):
             self.btn_extra_onedrive.update_style(**(active_kw if self.include_onedrive_var.get() else neutral_kw))
         if hasattr(self, "btn_extra_sysguard"):
@@ -10370,7 +13791,7 @@ class App(tk.Tk):
         parsed_from = self._parse_filter_date(cur_from, is_end=False)
         parsed_to = self._parse_filter_date(cur_to, is_end=True)
 
-        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
         active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
         for key, btn in self.date_preset_buttons.items():
             d1, d2 = self._compute_date_preset_range(key)
@@ -10412,7 +13833,7 @@ class App(tk.Tk):
             cur_bytes = self._parse_min_file_size(self.min_size_var.get())
         except ValueError:
             cur_bytes = None
-        neutral_kw = dict(bg="#ffffff", fg="#475569", hover_bg="#f1f5f9", border_color="#cbd5e1", font=("Segoe UI", 9))
+        neutral_kw = dict(bg="#ffffff", fg="#1e293b", hover_bg="#f1f5f9", border_color="#94a3b8", font=("Segoe UI", 9, "bold"))
         active_kw = dict(bg="#2563eb", fg="#ffffff", hover_bg="#1d4ed8", border_color=None, font=("Segoe UI", 9, "bold"))
         for key, btn in self.size_preset_buttons.items():
             target_b = self._parse_min_file_size(key)
@@ -10517,8 +13938,8 @@ class App(tk.Tk):
         target_sub: str,
         keyword_terms: list[tuple[str, str]],
     ) -> str:
-        """Leitet 07_Bilder-Einträge bei aktivem Suchfilter in 07_Bilder/<Suchfilter> um."""
-        if target_sub != "07_Bilder" or not keyword_terms:
+        """Leitet Bilder-&-Fotos-Einträge bei aktivem Suchfilter in 07_Archiv_Historie/04_Bilder_Fotos/<Suchfilter> um."""
+        if target_sub != "07_Archiv_Historie/04_Bilder_Fotos" or not keyword_terms:
             return target_sub
 
         valid_terms = [(kw, safe) for kw, safe in keyword_terms if safe]
@@ -10526,7 +13947,7 @@ class App(tk.Tk):
             return target_sub
 
         if len(valid_terms) == 1:
-            return f"07_Bilder/{valid_terms[0][1]}"
+            return f"07_Archiv_Historie/04_Bilder_Fotos/{valid_terms[0][1]}"
 
         try:
             rel_str = str(p.relative_to(src)).lower()
@@ -10535,7 +13956,7 @@ class App(tk.Tk):
 
         for kw_low, safe_name in valid_terms:
             if kw_low in rel_str:
-                return f"07_Bilder/{safe_name}"
+                return f"07_Archiv_Historie/04_Bilder_Fotos/{safe_name}"
 
         if p.is_dir():
             sample = []
@@ -10551,9 +13972,9 @@ class App(tk.Tk):
             blob = " ".join(sample).lower()
             for kw_low, safe_name in valid_terms:
                 if kw_low in blob:
-                    return f"07_Bilder/{safe_name}"
+                    return f"07_Archiv_Historie/04_Bilder_Fotos/{safe_name}"
 
-        return f"07_Bilder/{valid_terms[0][1]}"
+        return f"07_Archiv_Historie/04_Bilder_Fotos/{valid_terms[0][1]}"
 
     def _matches_extra_filters(self, p: Path, src: Path, dt_from, dt_to, keywords: list[str], min_bytes: int | None = None) -> bool:
         if min_bytes is not None and not p.is_dir():
@@ -10581,20 +14002,14 @@ class App(tk.Tk):
             if any(kw in rel_str for kw in keywords):
                 return True
             if p.is_dir():
-                sample = []
                 try:
-                    for root, dirs, files in os.walk(p):
-                        dirs[:] = [d for d in dirs if d.lower() not in IGNORED_DIRS and not d.startswith(".")]
-                        for d in dirs:
-                            sample.append(d)
-                        for f in files:
-                            sample.append(f)
-                        if len(sample) >= 80:
-                            break
+                    with os.scandir(p) as it:
+                        for entry in it:
+                            if any(kw in entry.name.lower() for kw in keywords):
+                                return True
                 except Exception:
                     pass
-                blob = " ".join(sample).lower()
-                return any(kw in blob for kw in keywords)
+                return False
             # Cloud-Only-Dateien bei der Suche NIEMALS oeffnen (verhindert OneDrive-Download)
             if is_cloud_only_file(p):
                 return False
@@ -10622,6 +14037,7 @@ class App(tk.Tk):
             "file": 150,
             "ext": 46,
             "size": 74,
+            "items_count": 70,
             "dup_status": 96,
             "category": 120,
             "target_folder": 130,
@@ -10633,6 +14049,7 @@ class App(tk.Tk):
             "file": 280,
             "ext": 68,
             "size": 105,
+            "items_count": 100,
             "dup_status": 150,
             "category": 210,
             "target_folder": 240,
@@ -10758,10 +14175,26 @@ class App(tk.Tk):
         init_dir = os.path.abspath(init_dir)
         folder = ask_folder_with_files(self, "Zielordner des 7-Ordner-Systems auswählen", initialdir=init_dir)
         if folder:
-            self.target_dir.set(os.path.normpath(folder))
+            p_norm = os.path.normpath(folder)
+            self.target_dir.set(p_norm)
+            self.target_mode = "custom"
+            self.update_target_mode_ui()
+            self.add_recent_target_folder(p_norm)
             self._save_app_state()
 
-    def _is_allowed_file(self, p: Path, mode=None, inc_installers=None, inc_media=None) -> bool:
+    def _is_allowed_file(
+        self,
+        p: Path,
+        mode=None,
+        inc_installers=None,
+        inc_media=None,
+        filter_all: bool | None = None,
+        filter_images: bool | None = None,
+        filter_text_docs: bool | None = None,
+        filter_office: bool | None = None,
+        filter_media: bool | None = None,
+        filter_installers: bool | None = None,
+    ) -> bool:
         """Prueft anhand des gewaehlten Dateifilters, ob eine Datei einbezogen wird."""
         name = p.name
         if name.startswith("~$") or name.startswith("."):
@@ -10775,18 +14208,44 @@ class App(tk.Tk):
             except Exception:
                 pass
         ext = p.suffix.lower()
-        mode = self.file_filter_mode.get() if mode is None else mode
-        if mode == "only_images":
-            return ext in IMAGE_EXTENSIONS
-        use_inst = self.include_installers_var.get() if inc_installers is None else inc_installers
-        if use_inst and ext in INSTALLER_EXTENSIONS:
+
+        # Thread-sichere Ermittlung der Filter-Booleans (ohne Tkinter-Aufruf im Hintergrundthread)
+        if filter_all is not None:
+            f_all = bool(filter_all)
+            f_img = bool(filter_images)
+            f_txt = bool(filter_text_docs)
+            f_off = bool(filter_office)
+            f_med = bool(filter_media)
+            f_inst = bool(filter_installers)
+        else:
+            try:
+                f_all = bool(self.filter_all_var.get())
+                f_img = bool(self.filter_images_var.get())
+                f_txt = bool(self.filter_text_docs_var.get())
+                f_off = bool(self.filter_office_var.get())
+                f_med = bool(self.filter_media_var.get())
+                f_inst = bool(self.filter_installers_var.get())
+            except Exception:
+                f_all = True
+                f_img = f_txt = f_off = f_med = f_inst = False
+
+        # Wenn "Alle Dateien" aktiv ist (Standard)
+        if f_all:
+            return ext in ALL_EXTENSIONS
+
+        # Einzeln oder zusammen wählbare Dateifilter:
+        if f_img and ext in IMAGE_EXTENSIONS:
             return True
-        use_media = self.include_media_var.get() if inc_media is None else inc_media
-        if use_media and ext in MEDIA_EXTENSIONS:
+        if f_txt and ext in TEXT_DOC_EXTENSIONS:
             return True
-        if mode == "no_images":
-            return ext in DOCUMENT_EXTENSIONS
-        return ext in VALID_EXTENSIONS
+        if f_off and ext in OFFICE_EXTENSIONS:
+            return True
+        if f_med and ext in MEDIA_EXTENSIONS:
+            return True
+        if f_inst and ext in INSTALLER_EXTENSIONS:
+            return True
+
+        return False
 
     def _scan_source_files(
         self,
@@ -10802,6 +14261,12 @@ class App(tk.Tk):
         inc_onedrive=None,
         exc_sys=None,
         min_bytes=None,
+        filter_all=None,
+        filter_images=None,
+        filter_text_docs=None,
+        filter_office=None,
+        filter_media=None,
+        filter_installers=None,
         cancel_event=None,
         progress_cb=None,
         from_ui: bool = True,
@@ -10828,18 +14293,37 @@ class App(tk.Tk):
                     min_bytes = self._parse_min_file_size(self.min_size_var.get())
                 except ValueError:
                     min_bytes = None
-        elif keywords is None:
-            keywords = []
+            sub_mode = self.subfolder_mode.get() if sub_mode is None else sub_mode
+            filter_mode = self.file_filter_mode.get() if filter_mode is None else filter_mode
+            inc_installers = bool(self.include_installers_var.get()) if inc_installers is None else bool(inc_installers)
+            inc_media = bool(self.include_media_var.get()) if inc_media is None else bool(inc_media)
+            inc_onedrive = bool(self.include_onedrive_var.get()) if inc_onedrive is None else bool(inc_onedrive)
+            exc_sys = bool(self.exclude_system_dirs_var.get()) if exc_sys is None else bool(exc_sys)
+            f_all = bool(self.filter_all_var.get()) if filter_all is None else bool(filter_all)
+            f_img = bool(self.filter_images_var.get()) if filter_images is None else bool(filter_images)
+            f_txt = bool(self.filter_text_docs_var.get()) if filter_text_docs is None else bool(filter_text_docs)
+            f_off = bool(self.filter_office_var.get()) if filter_office is None else bool(filter_office)
+            f_med = bool(self.filter_media_var.get()) if filter_media is None else bool(filter_media)
+            f_inst = bool(self.filter_installers_var.get()) if filter_installers is None else bool(filter_installers)
+        else:
+            if keywords is None:
+                keywords = []
+            sub_mode = "split" if sub_mode is None else sub_mode
+            filter_mode = "all" if filter_mode is None else filter_mode
+            inc_installers = False if inc_installers is None else bool(inc_installers)
+            inc_media = False if inc_media is None else bool(inc_media)
+            inc_onedrive = False if inc_onedrive is None else bool(inc_onedrive)
+            exc_sys = True if exc_sys is None else bool(exc_sys)
+            f_all = True if filter_all is None else bool(filter_all)
+            f_img = False if filter_images is None else bool(filter_images)
+            f_txt = False if filter_text_docs is None else bool(filter_text_docs)
+            f_off = False if filter_office is None else bool(filter_office)
+            f_med = False if filter_media is None else bool(filter_media)
+            f_inst = False if filter_installers is None else bool(filter_installers)
 
         src_resolved = src.resolve()
         dest_resolved = dest_base.resolve()
         same_root = (dest_resolved == src_resolved)
-        sub_mode = self.subfolder_mode.get() if sub_mode is None else sub_mode
-        filter_mode = self.file_filter_mode.get() if filter_mode is None else filter_mode
-        inc_installers = bool(self.include_installers_var.get()) if inc_installers is None else bool(inc_installers)
-        inc_media = bool(self.include_media_var.get()) if inc_media is None else bool(inc_media)
-        inc_onedrive = bool(self.include_onedrive_var.get()) if inc_onedrive is None else bool(inc_onedrive)
-        exc_sys = bool(self.exclude_system_dirs_var.get()) if exc_sys is None else bool(exc_sys)
         onedrive_roots = [] if inc_onedrive else get_onedrive_roots()
 
         def _is_cancelled() -> bool:
@@ -10908,7 +14392,15 @@ class App(tk.Tk):
                     p = Path(root) / f
                     if (
                         not _skip_cloud_file(p)
-                        and self._is_allowed_file(p, mode=filter_mode, inc_installers=inc_installers, inc_media=inc_media)
+                        and self._is_allowed_file(
+                            p,
+                            filter_all=f_all,
+                            filter_images=f_img,
+                            filter_text_docs=f_txt,
+                            filter_office=f_off,
+                            filter_media=f_med,
+                            filter_installers=f_inst,
+                        )
                         and self._matches_extra_filters(p, src, dt_from, dt_to, keywords, min_bytes=min_bytes)
                     ):
                         found_items.append(p)
@@ -10920,21 +14412,53 @@ class App(tk.Tk):
                 if p.is_file():
                     if (
                         not _skip_cloud_file(p)
-                        and self._is_allowed_file(p, mode=filter_mode, inc_installers=inc_installers, inc_media=inc_media)
+                        and self._is_allowed_file(
+                            p,
+                            filter_all=f_all,
+                            filter_images=f_img,
+                            filter_text_docs=f_txt,
+                            filter_office=f_off,
+                            filter_media=f_med,
+                            filter_installers=f_inst,
+                        )
                         and self._matches_extra_filters(p, src, dt_from, dt_to, keywords, min_bytes=min_bytes)
                     ):
                         found_items.append(p)
                         _report()
                 elif p.is_dir() and not p.is_symlink() and _is_valid_top_dir(p):
-                    if filter_mode == "only_images":
-                        if find_folder_target(p)[0] == "07_Bilder" and self._matches_extra_filters(p, src, dt_from, dt_to, keywords, min_bytes=min_bytes):
-                            found_items.append(p)
-                            _report()
-                    elif filter_mode == "no_images":
-                        if find_folder_target(p)[0] != "07_Bilder" and self._matches_extra_filters(p, src, dt_from, dt_to, keywords, min_bytes=min_bytes):
-                            found_items.append(p)
-                            _report()
-                    elif self._matches_extra_filters(p, src, dt_from, dt_to, keywords, min_bytes=min_bytes):
+                    # 1. ZUERST Stichwort-, Datums- & Groessenfilter pruefen (verhindert teure Ordner-Scans!)
+                    if not self._matches_extra_filters(p, src, dt_from, dt_to, keywords, min_bytes=min_bytes):
+                        continue
+
+                    # 2. Wenn "Alle Dateien" aktiv ist: Ordner sofort uebernehmen
+                    if f_all:
+                        found_items.append(p)
+                        _report()
+                        continue
+
+                    # 3. Wenn spezifische Typfilter aktiv sind (z. B. Videos & Audio):
+                    cat_matched = False
+                    p_name_low = p.name.lower()
+                    if f_med and (
+                        any(ext in p_name_low for ext in (".mkv", ".mp4", ".avi", ".ts", "bdrip", "720p", "1080p", "web", "dl", "german", "serie", "season", "staffel"))
+                        or "09_videos" in str(p).lower()
+                    ):
+                        cat_matched = True
+
+                    if not cat_matched:
+                        target_cat = find_folder_target(p)[0]
+                        if f_img and target_cat == "07_Archiv_Historie/04_Bilder_Fotos":
+                            cat_matched = True
+                        elif f_inst and target_cat == "08_Programme_Installer":
+                            cat_matched = True
+                        elif f_med and target_cat == "09_Videos_Medien":
+                            cat_matched = True
+                        elif (f_txt or f_off) and target_cat not in ("07_Archiv_Historie/04_Bilder_Fotos", "08_Programme_Installer", "09_Videos_Medien"):
+                            cat_matched = True
+                        elif target_cat in ("10_Ordner_Projekte", "01_Eingang_Inbox"):
+                            cat_matched = True
+
+                    if cat_matched:
                         found_items.append(p)
                         _report()
         else:
@@ -10944,7 +14468,15 @@ class App(tk.Tk):
                 if (
                     p.is_file()
                     and not _skip_cloud_file(p)
-                    and self._is_allowed_file(p, mode=filter_mode, inc_installers=inc_installers, inc_media=inc_media)
+                    and self._is_allowed_file(
+                        p,
+                        filter_all=f_all,
+                        filter_images=f_img,
+                        filter_text_docs=f_txt,
+                        filter_office=f_off,
+                        filter_media=f_med,
+                        filter_installers=f_inst,
+                    )
                     and self._matches_extra_filters(p, src, dt_from, dt_to, keywords, min_bytes=min_bytes)
                 ):
                     found_items.append(p)
@@ -11044,8 +14576,14 @@ class App(tk.Tk):
         # Alle Tkinter-Optionen vor Start des Worker-Threads als reine Python-Werte sichern
         sub_mode = self.subfolder_mode.get()
         filter_mode = self.file_filter_mode.get()
-        inc_installers = bool(self.include_installers_var.get())
-        inc_media = bool(self.include_media_var.get())
+        f_all = bool(self.filter_all_var.get())
+        f_img = bool(self.filter_images_var.get())
+        f_txt = bool(self.filter_text_docs_var.get())
+        f_off = bool(self.filter_office_var.get())
+        f_med = bool(self.filter_media_var.get())
+        f_inst = bool(self.filter_installers_var.get())
+        inc_installers = f_inst
+        inc_media = f_med
         inc_onedrive = bool(self.include_onedrive_var.get())
         exc_sys = bool(self.exclude_system_dirs_var.get())
         act = "Kopieren" if self.action_mode.get() == "copy" else "Verschieben"
@@ -11087,6 +14625,12 @@ class App(tk.Tk):
                             inc_onedrive=inc_onedrive,
                             exc_sys=exc_sys,
                             min_bytes=min_bytes,
+                            filter_all=f_all,
+                            filter_images=f_img,
+                            filter_text_docs=f_txt,
+                            filter_office=f_off,
+                            filter_media=f_med,
+                            filter_installers=f_inst,
                             cancel_event=cancel_event,
                             progress_cb=lambda cnt: progress_state.__setitem__("found", cnt),
                             from_ui=False,
@@ -11122,9 +14666,11 @@ class App(tk.Tk):
                         size_bytes = -1
                         if is_dir:
                             file_ext = "ORDNER"
-                            target_sub, label, inner_count = find_folder_target(p)
-                            size_str = "1 Datei" if inner_count == 1 else f"{inner_count} Dateien"
-                            size_bytes = inner_count
+                            target_sub, label, inner_count, inner_bytes = find_folder_target(p)
+                            size_bytes = inner_bytes
+                            size_str = format_file_size(inner_bytes)
+                            items_count = inner_count
+                            items_count_str = "1 Datei" if inner_count == 1 else f"{inner_count} Dateien"
                         else:
                             file_ext = p.suffix.upper().lstrip(".") or "DATEI"
                             try:
@@ -11132,6 +14678,8 @@ class App(tk.Tk):
                                 size_str = format_file_size(size_bytes)
                             except Exception:
                                 size_str = "—"
+                            items_count = 1
+                            items_count_str = "—"
 
                             is_cloud_only = is_cloud_only_file(p)
                             if is_cloud_only:
@@ -11156,12 +14704,15 @@ class App(tk.Tk):
                         item = {
                             "src_path": p,
                             "name": p.name,
+                            "orig_name": p.name,
                             "is_dir": is_dir,
                             "ext": file_ext,
                             "date": file_date,
                             "mtime_ts": mtime_ts,
                             "size_str": size_str,
                             "size_bytes": size_bytes,
+                            "inner_count": items_count,
+                            "items_count_str": items_count_str,
                             "source_path": str(p.parent),
                             "hash": "",
                             "is_cloud_only": is_cloud_only,
@@ -11259,7 +14810,22 @@ class App(tk.Tk):
             return
 
         if cancel_event.is_set():
-            return
+            if worker_out.get("all_items"):
+                self.show_notice(
+                    "Suche vorzeitig beendet",
+                    f"Die Suche wurde abgebrochen. Es wurden bisher {len(worker_out['all_items'])} passende Elemente gefunden.",
+                    "Diese werden nun in der Vorschau angezeigt.",
+                    kind="info",
+                    auto_close_ms=3000,
+                )
+            else:
+                self.show_notice(
+                    "Suche abgebrochen",
+                    "Die Ordnersuche wurde auf Ihren Wunsch hin abgebrochen.",
+                    kind="info",
+                    auto_close_ms=3000,
+                )
+                return
 
         if worker_out["error"] is not None:
             self.show_notice("Suchfehler", "Beim Durchsuchen des Quellordners ist ein Fehler aufgetreten.", str(worker_out["error"]), kind="error")
@@ -11334,6 +14900,10 @@ class App(tk.Tk):
 
         empty_vals = tuple([""] * len(self.col_keys))
         for item in all_items:
+            item["orig_name"] = item.get("orig_name", item.get("name", ""))
+            item["orig_target_sub"] = item.get("target_sub", "")
+            item["orig_label"] = item.get("label", "")
+            item["orig_action"] = item.get("action", "")
             row_id = self.tree.insert("", "end", values=empty_vals)
             self._preview_row_order.append(row_id)
             self.preview_items[row_id] = item
@@ -11436,7 +15006,9 @@ class App(tk.Tk):
 
     def show_notice(self, title: str, headline: str, subline: str = "",
                     kind: str = "info", ok_text: str = "OK",
-                    auto_close_ms: int | None = None):
+                    auto_close_ms: int | None = None,
+                    extra_button_text: str = "",
+                    extra_button_command=None):
         full_msg = f"{headline}\n{subline}" if subline else headline
         if kind == "error" and messagebox.showerror is not _ORIG_SHOWERROR:
             messagebox.showerror(title, full_msg)
@@ -11456,6 +15028,8 @@ class App(tk.Tk):
             confirm=False,
             ok_text=ok_text,
             auto_close_ms=auto_close_ms,
+            extra_button_text=extra_button_text,
+            extra_button_command=extra_button_command,
         )
         self.wait_window(dlg)
 
@@ -11475,59 +15049,94 @@ class App(tk.Tk):
         self.wait_window(dlg)
         return bool(dlg.result)
 
-    def _get_scope_execution_targets(self) -> tuple[list[str], str, str]:
-        """Liefert (row_ids, mode, button_text) für gezieltes Ausführen markierter oder gefilterter Zeilen."""
+    def _get_scope_execution_targets(self) -> tuple[list[str] | None, str, str]:
+        """Liefert (row_ids_or_None, mode, button_text) strikt anhand der aktuellen Markierung."""
         tree = getattr(self, "tree", None)
         items = getattr(self, "preview_items", None) or {}
-        if tree is None or not items:
-            return [], "none", "Nur Auswahl / Filter ausführen ➔"
+        active_rids = [rid for rid, it in items.items() if it and it.get("action") != "Gelöscht"]
+        total_active = len(active_rids)
+        if tree is None or total_active == 0:
+            return [], "none", "Keine Auswahl"
 
-        sel = [rid for rid in tree.selection() if rid in items]
-        if sel:
-            lbl = "Nur 1 markierte ausführen ➔" if len(sel) == 1 else f"Nur {len(sel)} markierte ausführen ➔"
-            return sel, "selection", lbl
+        sel = [rid for rid in tree.selection() if rid in items and items[rid].get("action") != "Gelöscht"]
+        if not sel:
+            return [], "none", "Keine Auswahl"
 
-        if self._has_active_step2_filters():
-            vis = [rid for rid in tree.get_children("") if rid in items]
-            if len(vis) == 1:
-                lbl = "Nur 1 gefilterte ausführen ➔"
-            elif vis:
-                lbl = f"Nur {len(vis)} gefilterte ausführen ➔"
-            else:
-                lbl = "Nur gefilterte ausführen ➔"
-            return vis, "filtered", lbl
+        if len(sel) >= total_active:
+            return None, "all", f"Auf alle {total_active} anwenden ➔"
 
-        return [], "none", "Nur Auswahl / Filter ausführen ➔"
+        lbl = "Auf 1 markierte anwenden ➔" if len(sel) == 1 else f"Auf {len(sel)} markierte anwenden ➔"
+        return sel, "selection", lbl
 
     def _update_execute_scope_button(self):
-        btn = getattr(self, "btn_execute_scope", None)
-        if btn is None:
-            return
-        try:
-            _, _, lbl = self._get_scope_execution_targets()
-            btn.update_style(text=lbl)
-        except Exception:
-            pass
+        btn_exec = getattr(self, "btn_execute", None)
+        if btn_exec is not None:
+            try:
+                _, mode, lbl = self._get_scope_execution_targets()
+                if mode == "none":
+                    btn_exec.update_style(
+                        text=lbl,
+                        bg="#e2e8f0",
+                        fg="#64748b",
+                        hover_bg="#e2e8f0",
+                        border_color="#cbd5e1",
+                    )
+                else:
+                    btn_exec.update_style(
+                        text=lbl,
+                        bg="#2563eb",
+                        fg="#ffffff",
+                        hover_bg="#1d4ed8",
+                        border_color=None,
+                    )
+            except Exception:
+                pass
+        btn_all = getattr(self, "btn_toggle_select_all", None)
+        tree = getattr(self, "tree", None)
+        if btn_all is not None and tree is not None:
+            try:
+                vis = list(tree.get_children(""))
+                sel = set(tree.selection())
+                all_selected = bool(vis) and all(rid in sel for rid in vis)
+                if all_selected:
+                    btn_all.update_style(
+                        text="☐ Auswahl aufheben",
+                        bg="#dbeafe",
+                        fg="#1d4ed8",
+                        hover_bg="#bfdbfe",
+                        border_color="#60a5fa",
+                    )
+                else:
+                    btn_all.update_style(
+                        text="✓ Alle wählen",
+                        bg="#eff6ff",
+                        fg="#1d4ed8",
+                        hover_bg="#dbeafe",
+                        border_color="#93c5fd",
+                    )
+            except Exception:
+                pass
 
     def execute_selected_or_filtered_sort(self):
         rids, mode, _ = self._get_scope_execution_targets()
         if mode == "none":
             self.show_notice(
-                "Keine Auswahl oder Filter aktiv",
-                "Bitte markieren Sie zuerst Zeilen in der Tabelle oder setzen Sie oben einen Filter (z. B. „.epub“), um gezielt nur diese auszuführen.",
-                "Für die komplette Tabelle nutzen Sie rechts den Button „Jetzt sortieren & anwenden“.",
+                "Keine Einträge ausgewählt",
+                "Bitte markieren Sie zuerst die gewünschten Zeilen in der Tabelle – oder klicken Sie auf „✓ Alle wählen“.",
                 kind="info",
             )
+            return
+        if mode == "all":
+            self.execute_sort()
             return
         if not rids:
             self.show_notice(
                 "Keine passenden Einträge",
-                "Im aktuellen Filter werden momentan keine Einträge angezeigt.",
+                "Die ausgewählten Einträge können aktuell nicht ausgeführt werden.",
                 kind="info",
             )
             return
-        scope_lbl = "aus Markierung" if mode == "selection" else "aus aktuellem Filter"
-        self.execute_sort(target_row_ids=rids, scope_label=scope_lbl)
+        self.execute_sort(target_row_ids=rids, scope_label="aus Markierung")
 
     def execute_sort(self, target_row_ids: list[str] | None = None, scope_label: str = "", override_action_mode: str | None = None):
         items_to_process = []
@@ -11560,8 +15169,9 @@ class App(tk.Tk):
                     target_dir = dest_base / raw_sub
                     uses_dest_base = True
                 if act == "Mitkopieren":
-                    stem = item["src_path"].stem
-                    suffix = item["src_path"].suffix
+                    p_name = Path(item["name"])
+                    stem = p_name.stem
+                    suffix = p_name.suffix
                     target_file = target_dir / f"{stem}_01{suffix}"
                     items_to_process.append({
                         "rid": row_id,
@@ -11571,6 +15181,7 @@ class App(tk.Tk):
                         "action": "copy",
                         "is_dup": True,
                         "is_dir": is_dir,
+                        "size_bytes": max(0, item.get("size_bytes", 0)),
                         "is_cloud_only": bool(item.get("is_cloud_only", False)),
                     })
                 else:
@@ -11588,6 +15199,7 @@ class App(tk.Tk):
                         "action": item_action,
                         "is_dup": False,
                         "is_dir": is_dir,
+                        "size_bytes": max(0, item.get("size_bytes", 0)),
                         "is_cloud_only": bool(item.get("is_cloud_only", False)),
                     })
 
@@ -11674,64 +15286,241 @@ class App(tk.Tk):
         if not confirmed:
             return
 
-        transaction = {
-            "timestamp": datetime.datetime.now().isoformat(),
-            "action": eff_mode,
-            "items": []
+        # Asynchrone, nicht-blockierende Ausfuehrung mit TransferBusyOverlay (Byte-genauer Live-Fortschritt)
+        total_transfer_bytes = sum(max(0, it.get("size_bytes", 0)) for it in items_to_process)
+        cancel_event = threading.Event()
+        done_event = threading.Event()
+        progress_state = {
+            "item_idx": 0,
+            "total_items": len(items_to_process),
+            "current_item": "",
+            "current_subfile": "",
+            "file_copied": 0,
+            "file_total": 0,
+            "copied_bytes": 0,
+            "total_bytes": total_transfer_bytes,
+            "speed_mb_s": 0.0,
+            "success": 0,
+            "failed": [],
+            "cancelled": False,
+            "executed_rids_copy": [],
+            "executed_rids_move": [],
+            "transaction_items": [],
         }
 
-        success = 0
-        executed_rids_copy = []
-        executed_rids_move = []
-        for it in items_to_process:
-            src = it["src_path"]
-            dest_dir = it["dest_dir"]
-            dest_file = it["dest_file"]
+        last_speed_t = time.monotonic()
+        last_speed_b = 0
 
-            dest_dir.mkdir(parents=True, exist_ok=True)
+        def _on_chunk(n_bytes, file_copied, file_total):
+            nonlocal last_speed_t, last_speed_b
+            progress_state["copied_bytes"] += n_bytes
+            progress_state["file_copied"] = file_copied
+            progress_state["file_total"] = file_total
+            now = time.monotonic()
+            dt = now - last_speed_t
+            if dt >= 0.35:
+                diff = progress_state["copied_bytes"] - last_speed_b
+                progress_state["speed_mb_s"] = max(0.0, (diff / (1024 * 1024)) / max(0.01, dt))
+                last_speed_t = now
+                last_speed_b = progress_state["copied_bytes"]
 
-            final_dest = dest_file
-            counter = 1
-            while final_dest.exists():
-                if it.get("is_dir"):
-                    final_dest = dest_dir / f"{src.name}_{counter}"
-                else:
-                    stem = src.stem
-                    suffix = src.suffix
-                    tag = f"_{counter:02d}" if it["is_dup"] else f"_{counter}"
-                    final_dest = dest_dir / f"{stem}{tag}{suffix}"
-                counter += 1
+        def _on_subfile_start(fname, fsize):
+            progress_state["current_subfile"] = fname
+            progress_state["file_copied"] = 0
+            progress_state["file_total"] = fsize
 
+        overlay = None
+        try:
+            self.config(cursor="wait")
+            overlay = TransferBusyOverlay(
+                self,
+                is_copy=is_copy,
+                total_items=len(items_to_process),
+                on_cancel=cancel_event.set,
+            )
+            overlay.place(relx=0.5, rely=0.5, anchor="center")
+            overlay.lift()
+            self.update_idletasks()
+        except Exception:
+            overlay = None
+
+        def _transfer_worker():
             try:
-                if it["action"] == "copy":
-                    if it.get("is_dir"):
-                        shutil.copytree(str(src), str(final_dest))
-                    else:
-                        shutil.copy2(str(src), str(final_dest))
-                    executed_rids_copy.append(it["rid"])
-                else:
-                    shutil.move(str(src), str(final_dest))
-                    executed_rids_move.append(it["rid"])
+                for idx, it in enumerate(items_to_process):
+                    if cancel_event.is_set():
+                        progress_state["cancelled"] = True
+                        break
 
-                transaction["items"].append({
-                    "src": str(src),
-                    "dest": str(final_dest),
-                    "is_dir": bool(it.get("is_dir", False)),
-                })
-                success += 1
-            except Exception as e:
-                print(f"Fehler bei {src}: {e}")
+                    src = it["src_path"]
+                    dest_dir = it["dest_dir"]
+                    dest_file = it["dest_file"]
+
+                    progress_state["item_idx"] = idx
+                    progress_state["current_item"] = src.name
+                    progress_state["current_subfile"] = ""
+                    progress_state["file_copied"] = 0
+                    progress_state["file_total"] = 0
+
+                    try:
+                        dest_dir.mkdir(parents=True, exist_ok=True)
+                    except Exception as exc:
+                        print(f"Fehler beim Erstellen von {dest_dir}: {exc}")
+                        progress_state["failed"].append((src.name, str(exc)))
+                        continue
+
+                    final_dest = dest_file
+                    counter = 1
+                    while final_dest.exists():
+                        if it.get("is_dir"):
+                            final_dest = dest_dir / f"{dest_file.name}_{counter}"
+                        else:
+                            stem = dest_file.stem
+                            suffix = dest_file.suffix
+                            tag = f"_{counter:02d}" if it["is_dup"] else f"_{counter}"
+                            final_dest = dest_dir / f"{stem}{tag}{suffix}"
+                        counter += 1
+
+                    try:
+                        if it["action"] == "copy":
+                            if it.get("is_dir"):
+                                ok = _copy_directory_worker(
+                                    src,
+                                    final_dest,
+                                    cancel_ev=cancel_event,
+                                    file_start_cb=_on_subfile_start,
+                                    byte_cb=_on_chunk,
+                                )
+                                if not ok and cancel_event.is_set():
+                                    progress_state["cancelled"] = True
+                                    break
+                            else:
+                                _on_subfile_start(src.name, src.stat().st_size if src.exists() else 0)
+                                ok = _copy_file_chunked(
+                                    src,
+                                    final_dest,
+                                    cancel_ev=cancel_event,
+                                    byte_cb=_on_chunk,
+                                )
+                                if not ok and cancel_event.is_set():
+                                    progress_state["cancelled"] = True
+                                    break
+                            if ok:
+                                progress_state["executed_rids_copy"].append(it["rid"])
+                            else:
+                                progress_state["failed"].append((src.name, "Kopiervorgang unvollständig"))
+                        else:
+                            if it.get("is_dir"):
+                                ok = _move_directory_worker(
+                                    src,
+                                    final_dest,
+                                    cancel_ev=cancel_event,
+                                    file_start_cb=_on_subfile_start,
+                                    byte_cb=_on_chunk,
+                                )
+                                if not ok and cancel_event.is_set():
+                                    progress_state["cancelled"] = True
+                                    break
+                            else:
+                                _on_subfile_start(src.name, src.stat().st_size if src.exists() else 0)
+                                moved_ok = False
+                                ok = False
+                                try:
+                                    os.rename(str(src), str(final_dest))
+                                    moved_ok = True
+                                    ok = True
+                                    progress_state["copied_bytes"] += it.get("size_bytes", 0)
+                                except OSError:
+                                    pass
+                                if not moved_ok:
+                                    ok = _copy_file_chunked(
+                                        src,
+                                        final_dest,
+                                        cancel_ev=cancel_event,
+                                        byte_cb=_on_chunk,
+                                    )
+                                    if not ok and cancel_event.is_set():
+                                        progress_state["cancelled"] = True
+                                        break
+                                    if ok and not cancel_event.is_set():
+                                        try:
+                                            src.unlink()
+                                        except Exception:
+                                            pass
+                            if ok:
+                                progress_state["executed_rids_move"].append(it["rid"])
+                            else:
+                                progress_state["failed"].append((src.name, "Verschieben unvollständig"))
+
+                        if ok:
+                            progress_state["transaction_items"].append({
+                                "src": str(src),
+                                "dest": str(final_dest),
+                                "is_dir": bool(it.get("is_dir", False)),
+                            })
+                            progress_state["success"] += 1
+                    except Exception as e:
+                        print(f"Fehler bei {src}: {e}")
+                        progress_state["failed"].append((src.name, str(e)))
+            finally:
+                done_event.set()
+
+        threading.Thread(target=_transfer_worker, daemon=True).start()
+
+        last_anim = 0.0
+        while not done_event.is_set():
+            now = time.monotonic()
+            if overlay is not None and (now - last_anim) >= 0.04:
+                last_anim = now
+                try:
+                    overlay.update_progress(
+                        item_idx=progress_state["item_idx"],
+                        total_items=progress_state["total_items"],
+                        current_item=progress_state["current_item"],
+                        current_subfile=progress_state["current_subfile"],
+                        copied_bytes=progress_state["copied_bytes"],
+                        total_bytes=progress_state["total_bytes"],
+                        file_copied=progress_state["file_copied"],
+                        file_total=progress_state["file_total"],
+                        speed_mb_s=progress_state["speed_mb_s"],
+                    )
+                except tk.TclError:
+                    break
+            try:
+                self.update()
+            except tk.TclError:
+                cancel_event.set()
+                break
+            done_event.wait(0.02)
+
+        if overlay is not None:
+            try:
+                overlay.destroy()
+            except Exception:
+                pass
+        try:
+            self.config(cursor="")
+        except Exception:
+            pass
 
         # Transaktion speichern
-        try:
-            history = []
-            if HISTORY_FILE.exists():
-                history = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
-            history.append(transaction)
-            HISTORY_FILE.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
-        except Exception as e:
-            print(f"Fehler beim Schreiben der Historie: {e}")
+        if progress_state["transaction_items"]:
+            transaction = {
+                "timestamp": datetime.datetime.now().isoformat(),
+                "action": eff_mode,
+                "items": progress_state["transaction_items"],
+            }
+            try:
+                history = []
+                if HISTORY_FILE.exists():
+                    history = json.loads(HISTORY_FILE.read_text(encoding="utf-8"))
+                history.append(transaction)
+                HISTORY_FILE.write_text(json.dumps(history, indent=2, ensure_ascii=False), encoding="utf-8")
+            except Exception as e:
+                print(f"Fehler beim Schreiben der Historie: {e}")
 
+        # Tabelle aktualisieren (fuer kopierte / verschobene Zeilen)
+        executed_rids_copy = progress_state["executed_rids_copy"]
+        executed_rids_move = progress_state["executed_rids_move"]
         if is_partial and (executed_rids_copy or executed_rids_move):
             moved_set = set(executed_rids_move)
             for rid in executed_rids_copy:
@@ -11751,6 +15540,7 @@ class App(tk.Tk):
                 self.duplicate_ids = [r for r in self.duplicate_ids if r not in moved_set]
             self.update_dup_counter()
             self.apply_step2_filters()
+            self._update_execute_scope_button()
 
         has_dirs = any(it.get("is_dir") for it in items_to_process)
         if has_dirs:
@@ -11759,26 +15549,74 @@ class App(tk.Tk):
             unit_label = "Bilddateien"
         else:
             unit_label = "Dateien"
+
+        explorer_target = self._resolve_explorer_target_dir(dest_base, progress_state["transaction_items"])
+        self._last_explorer_target = str(explorer_target)
+
+        # Abbruch abfangen
+        if progress_state["cancelled"]:
+            self.show_notice(
+                "Vorgang abgebrochen",
+                f"Es wurden {progress_state['success']} von {len(items_to_process)} {unit_label} {action_name}.",
+                "Die restlichen Vorgänge wurden gestoppt. Bereits ausgeführte Elemente wurden in der Tabelle aktualisiert.",
+                kind="warning",
+                extra_button_text="📂 Im Explorer zeigen",
+                extra_button_command=lambda: self.open_target_explorer(explorer_target),
+            )
+            return
+
+        # Bei Teilausführung (Nur markierte/gefilterte ausführen):
+        # In Schritt 2 bleiben, Zeilen aktualisiert anzeigen und klare Rückmeldung mit Direkt-Link zum Zielordner geben!
+        if is_partial:
+            if progress_state["success"] > 0:
+                dlg_title = "Ausführung erfolgreich" if not progress_state["failed"] else "Teilweise ausgeführt"
+                dlg_kind = "success" if not progress_state["failed"] else "warning"
+                headline_txt = f"✓ {progress_state['success']} von {len(items_to_process)} {unit_label} erfolgreich {action_name}."
+                subline_txt = f"Zielordner: {explorer_target}\n\nDie ausgeführten Zeilen wurden in der Tabelle auf „Überspringen“ gesetzt."
+                if progress_state["failed"]:
+                    subline_txt += f"\n⚠️ Bei {len(progress_state['failed'])} Element(en) trat ein Fehler auf (bleiben in der Tabelle erhalten)."
+            else:
+                dlg_title = "Ausführung fehlgeschlagen"
+                dlg_kind = "error"
+                headline_txt = f"⚠️ Keines der {len(items_to_process)} {unit_label} konnte {action_name} werden."
+                err_details = "\n".join(f"• {name}: {err}" for name, err in progress_state["failed"][:3])
+                subline_txt = f"Zielordner: {explorer_target}\n\nUrsache:\n{err_details}\n\nDie Tabellenzeilen bleiben unverändert erhalten."
+
+            self.show_notice(
+                dlg_title,
+                headline_txt,
+                subline=subline_txt,
+                kind=dlg_kind,
+                extra_button_text="📂 Im Explorer öffnen",
+                extra_button_command=lambda: self.open_target_explorer(explorer_target),
+            )
+            return
+
+        # Vollständige Ausführung: Übergang zu Schritt 3 & Zielordner öffnen
         self.lbl_result.config(
-            text=f"✓  Es wurden {success} von {len(items_to_process)} {unit_label} erfolgreich {action_name}."
+            text=f"✓  Es wurden {progress_state['success']} von {len(items_to_process)} {unit_label} erfolgreich {action_name}."
         )
-        has_remaining = bool(is_partial and self.preview_items)
+        executed_set = set(executed_rids_copy) | set(executed_rids_move)
+        unprocessed_cnt = sum(
+            1 for rid, it in self.preview_items.items()
+            if rid not in executed_set and it.get("action") not in ("Gelöscht", "Überspringen")
+        )
+        has_remaining = unprocessed_cnt > 0
         if hasattr(self, "lbl_step3_subtitle"):
             self.lbl_step3_subtitle.config(
                 text=(
-                    "Die ausgewählten bzw. gefilterten Elemente wurden übernommen. Übrige Einträge stehen weiter in der Tabelle bereit."
+                    "Die ausgewählten Elemente wurden übernommen. Übrige Einträge stehen weiter in der Tabelle bereit."
                     if has_remaining
                     else "Alle ausgewählten Elemente wurden geordnet in das 7-Ordner-System übernommen."
                 )
             )
         if hasattr(self, "btn_step3_back_to_table"):
+            if not self.btn_step3_back_to_table.winfo_manager():
+                self.btn_step3_back_to_table.pack(side="left", before=self.btn_step3_undo, padx=(0, 10))
             if has_remaining:
-                if not self.btn_step3_back_to_table.winfo_manager():
-                    self.btn_step3_back_to_table.pack(side="left", before=self.btn_step3_again, padx=(0, 10))
+                self.btn_step3_back_to_table.update_style(text=f"⬅ Zurück zur Vorschau – {unprocessed_cnt} übrig")
             else:
-                self.btn_step3_back_to_table.pack_forget()
-        explorer_target = self._resolve_explorer_target_dir(dest_base, transaction["items"])
-        self._last_explorer_target = str(explorer_target)
+                self.btn_step3_back_to_table.update_style(text="⬅ Zurück zur Vorschau")
         self.lbl_step3_src.config(text=self.source_dir.get().strip())
         self.lbl_step3_dest.config(text=str(explorer_target))
         if eff_mode == "copy":
@@ -11856,7 +15694,7 @@ class App(tk.Tk):
 
     @staticmethod
     def _resolve_explorer_target_dir(dest_base: Path, created_items: list[dict]) -> Path:
-        """Ermittelt den konkreten Zielordner (z. B. 07_Bilder/Spencer) für Explorer-Start & Anzeige."""
+        """Ermittelt den konkreten Zielordner (z. B. 07_Archiv_Historie/04_Bilder_Fotos/Spencer) für Explorer-Start & Anzeige."""
         dest_dirs = [Path(it["dest"]).parent for it in created_items if Path(it["dest"]).parent.exists()]
         if not dest_dirs:
             return dest_base
@@ -11877,8 +15715,21 @@ class App(tk.Tk):
         target = str(path or getattr(self, "_last_explorer_target", "") or self.target_dir.get()).strip()
         if not target or not os.path.exists(target):
             target = self.target_dir.get().strip()
+        if not target or not os.path.exists(target):
+            try:
+                p_parent = str(Path(target).parent)
+                if os.path.exists(p_parent):
+                    target = p_parent
+            except Exception:
+                pass
         if os.name == "nt" and target and os.path.exists(target):
-            os.startfile(target)
+            try:
+                subprocess.Popen(["explorer.exe", os.path.normpath(target)])
+            except Exception:
+                try:
+                    os.startfile(os.path.normpath(target))
+                except Exception as _err:
+                    print(f"Explorer-Fehler: {_err}")
 
     def _apply_startup_source(self, src_path: str, tgt_path: str | None = None):
         norm_src = os.path.normpath(str(src_path).strip())
@@ -12027,13 +15878,40 @@ class App(tk.Tk):
             if saved_dest:
                 self.target_dir.set(saved_dest)
             saved_tmode = data.get("target_mode")
-            if saved_tmode in ("adjacent", "subfolder", "same", "custom"):
+            if saved_tmode in ("adjacent", "subfolder", "same", "usb", "onedrive", "custom"):
                 self.target_mode = saved_tmode
             saved_act = data.get("action_mode")
             if saved_act in ("copy", "move"):
                 self.action_mode.set(saved_act)
-            # Beim Programmstart immer "Alle Dateien" vorauswählen
-            self.file_filter_mode.set("all")
+            # Dateifilter-Zustand wiederherstellen (falls spezifischer Filter gewählt war, diesen wiederherstellen - niemals beide gleichzeitig!)
+            saved_f_img = bool(data.get("filter_images", False))
+            saved_f_txt = bool(data.get("filter_text_docs", False))
+            saved_f_off = bool(data.get("filter_office", False))
+            saved_f_med = bool(data.get("filter_media", data.get("include_media", False)))
+            saved_f_inst = bool(data.get("filter_installers", data.get("include_installers", False)))
+            saved_f_all = data.get("filter_all")
+
+            has_specific = (saved_f_img or saved_f_txt or saved_f_off or saved_f_med or saved_f_inst)
+            if has_specific and saved_f_all is not True:
+                self.filter_all_var.set(False)
+                self.filter_images_var.set(saved_f_img)
+                self.filter_text_docs_var.set(saved_f_txt)
+                self.filter_office_var.set(saved_f_off)
+                self.filter_media_var.set(saved_f_med)
+                self.filter_installers_var.set(saved_f_inst)
+                self.include_media_var.set(saved_f_med)
+                self.include_installers_var.set(saved_f_inst)
+                self.file_filter_mode.set("custom")
+            else:
+                self.filter_all_var.set(True)
+                self.filter_images_var.set(False)
+                self.filter_text_docs_var.set(False)
+                self.filter_office_var.set(False)
+                self.filter_media_var.set(False)
+                self.filter_installers_var.set(False)
+                self.include_media_var.set(False)
+                self.include_installers_var.set(False)
+                self.file_filter_mode.set("all")
             self.update_file_filter_ui()
             saved_submode = data.get("subfolder_mode")
             if saved_submode in ("split", "whole", "ignore"):
@@ -12042,12 +15920,8 @@ class App(tk.Tk):
                 self.subfolder_mode.set("split" if data.get("recursive") else "ignore")
             self.recursive_var.set(self.subfolder_mode.get() == "split")
             self.update_subfolder_mode_ui()
-            if "include_installers" in data:
-                self.include_installers_var.set(bool(data.get("include_installers")))
-            if "include_media" in data:
-                self.include_media_var.set(bool(data.get("include_media")))
-            if "include_onedrive" in data:
-                self.include_onedrive_var.set(bool(data.get("include_onedrive")))
+            # OneDrive soll beim Start NIEMALS aktiv sein (immer inaktiv/False)
+            self.include_onedrive_var.set(False)
             if "exclude_system_dirs" in data or "network_guard" in data:
                 saved_sys = bool(data.get("exclude_system_dirs", True))
                 saved_net = bool(data.get("network_guard", True))
@@ -12075,6 +15949,12 @@ class App(tk.Tk):
             saved_order = data.get("column_order")
             if isinstance(saved_order, list) and saved_order:
                 valid_order = [c for c in saved_order if c in self.col_keys]
+                if "items_count" not in valid_order:
+                    if "size" in valid_order:
+                        s_idx = valid_order.index("size")
+                        valid_order.insert(s_idx + 1, "items_count")
+                    else:
+                        valid_order.append("items_count")
                 for c in self.col_keys:
                     if c not in valid_order:
                         valid_order.append(c)
@@ -12103,6 +15983,30 @@ class App(tk.Tk):
             saved_theme = str(data.get("theme") or "").strip().lower()
             if not self._startup_theme and saved_theme in ("light", "dark"):
                 self.theme_mode = saved_theme
+
+            saved_recent = data.get("recent_target_folders")
+            if isinstance(saved_recent, list) and saved_recent:
+                self.recent_target_folders = []
+                seen_paths = set()
+                for item in saved_recent:
+                    if isinstance(item, dict) and item.get("path"):
+                        p_norm = os.path.normpath(str(item["path"]).strip())
+                        if p_norm.lower() not in seen_paths:
+                            seen_paths.add(p_norm.lower())
+                            self.recent_target_folders.append({
+                                "path": p_norm,
+                                "pinned": bool(item.get("pinned", False)),
+                                "label": str(item.get("label") or os.path.basename(p_norm.rstrip("\\/")) or p_norm),
+                                "timestamp": float(item.get("timestamp", 0.0)),
+                            })
+                    if len(self.recent_target_folders) >= 5:
+                        break
+            else:
+                self.recent_target_folders = []
+                t_init = self.target_dir.get().strip()
+                if t_init:
+                    self.add_recent_target_folder(t_init)
+            self.update_recent_target_buttons()
         except Exception:
             pass
         finally:
@@ -12128,6 +16032,12 @@ class App(tk.Tk):
                 "target_mode": self.target_mode,
                 "action_mode": self.action_mode.get(),
                 "file_filter_mode": self.file_filter_mode.get(),
+                "filter_all": bool(self.filter_all_var.get()),
+                "filter_images": bool(self.filter_images_var.get()),
+                "filter_text_docs": bool(self.filter_text_docs_var.get()),
+                "filter_office": bool(self.filter_office_var.get()),
+                "filter_media": bool(self.filter_media_var.get()),
+                "filter_installers": bool(self.filter_installers_var.get()),
                 "subfolder_mode": self.subfolder_mode.get(),
                 "recursive": bool(self.subfolder_mode.get() == "split"),
                 "include_installers": bool(self.include_installers_var.get()),
@@ -12149,6 +16059,7 @@ class App(tk.Tk):
                 "dup_original_strategy": getattr(self, "dup_original_strategy", "clean_name"),
                 "preview_visible": bool(self.preview_visible),
                 "preview_pane_width": int(getattr(self, "_preview_pane_width", 380) or 380),
+                "recent_target_folders": getattr(self, "recent_target_folders", [])[:5],
                 "theme": getattr(self, "theme_mode", "light"),
             }
             WINDOW_STATE_FILE.write_text(json.dumps(payload, indent=2, ensure_ascii=False), encoding="utf-8")
