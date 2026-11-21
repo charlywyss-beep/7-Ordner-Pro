@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.96"
+APP_VERSION = "v1.0.97"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -3226,11 +3226,20 @@ class ModernNoticeDialog(tk.Toplevel):
             if extra_button_text and callable(extra_button_command):
                 def _on_extra_action():
                     self._stop_auto_close()
-                    self.destroy()
                     try:
-                        extra_button_command()
-                    except Exception as _e:
-                        print(f"Fehler in Dialog-Zusatzbutton: {_e}")
+                        self.grab_release()
+                    except Exception:
+                        pass
+                    self.destroy()
+                    def _run_extra():
+                        try:
+                            extra_button_command()
+                        except Exception as _e:
+                            print(f"Fehler in Dialog-Zusatzbutton: {_e}")
+                    try:
+                        parent.after(120, _run_extra)
+                    except Exception:
+                        _run_extra()
 
                 ModernRoundedButton(
                     btn_bar,
@@ -15758,12 +15767,18 @@ class App(tk.Tk):
             except Exception:
                 pass
         if os.name == "nt" and target and os.path.exists(target):
-            norm_target = os.path.normpath(target)
+            norm_target = os.path.normpath(os.path.abspath(target))
+            opened = False
             try:
-                os.startfile(norm_target)
+                import ctypes
+                rc = ctypes.windll.shell32.ShellExecuteW(None, "explore", norm_target, None, None, 1)
+                if rc and int(rc) > 32:
+                    opened = True
             except Exception:
+                opened = False
+            if not opened:
                 try:
-                    subprocess.Popen(["explorer.exe", norm_target])
+                    subprocess.Popen(f'explorer.exe "{norm_target}"')
                 except Exception as _err:
                     print(f"Explorer-Fehler: {_err}")
 
