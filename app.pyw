@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.95"
+APP_VERSION = "v1.0.96"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -3115,7 +3115,7 @@ class ModernNoticeDialog(tk.Toplevel):
         self.subline_text = subline
         self._auto_close_after_id = None
         if auto_close_ms is None:
-            auto_close_ms = 3000 if (not confirm and kind in ("success", "info")) else 0
+            auto_close_ms = 3000 if (not confirm and not extra_button_text and kind in ("success", "info")) else 0
         self.auto_close_ms = max(0, int(auto_close_ms))
 
         self.title(title)
@@ -15758,11 +15758,12 @@ class App(tk.Tk):
             except Exception:
                 pass
         if os.name == "nt" and target and os.path.exists(target):
+            norm_target = os.path.normpath(target)
             try:
-                subprocess.Popen(["explorer.exe", os.path.normpath(target)])
+                os.startfile(norm_target)
             except Exception:
                 try:
-                    os.startfile(os.path.normpath(target))
+                    subprocess.Popen(["explorer.exe", norm_target])
                 except Exception as _err:
                     print(f"Explorer-Fehler: {_err}")
 
