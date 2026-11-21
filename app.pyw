@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.93"
+APP_VERSION = "v1.0.94"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -2927,6 +2927,8 @@ def apply_window_folder_icon(win, is_root: bool = False):
                 _APP_USER_MODEL_ID_SET = True
             except Exception:
                 pass
+    ico_applied = False
+    ico_path = None
     try:
         ico_path = ensure_app_ico_path()
         if ico_path:
@@ -2934,15 +2936,46 @@ def apply_window_folder_icon(win, is_root: bool = False):
                 win.iconbitmap(default=str(ico_path))
             else:
                 win.iconbitmap(str(ico_path))
+            ico_applied = True
     except Exception:
         pass
-    try:
-        ico64 = get_app_badge_icon_photo(64)
-        ico32 = get_app_badge_icon_photo(32)
-        win._win_icon_refs = (ico64, ico32)
-        win.iconphoto(bool(is_root), ico64, ico32)
-    except Exception:
-        pass
+    if sys.platform.startswith("win") and ico_path:
+        def _force_win32_taskbar_icon(w=win, p=str(ico_path)):
+            try:
+                if not w or not w.winfo_exists():
+                    return
+                import ctypes
+                user32 = ctypes.windll.user32
+                WM_SETICON = 0x0080
+                ICON_SMALL = 0
+                ICON_BIG = 1
+                IMAGE_ICON = 1
+                LR_LOADFROMFILE = 0x0010
+                LR_DEFAULTSIZE = 0x0040
+                hwnd = user32.GetParent(w.winfo_id()) or w.winfo_id()
+                h_big = user32.LoadImageW(None, p, IMAGE_ICON, 48, 48, LR_LOADFROMFILE | LR_DEFAULTSIZE)
+                h_small = user32.LoadImageW(None, p, IMAGE_ICON, 16, 16, LR_LOADFROMFILE)
+                if h_big:
+                    user32.SendMessageW(hwnd, WM_SETICON, ICON_BIG, h_big)
+                if h_small:
+                    user32.SendMessageW(hwnd, WM_SETICON, ICON_SMALL, h_small)
+                w._win32_hicons = (h_big, h_small)
+            except Exception:
+                pass
+        try:
+            win.after(60, _force_win32_taskbar_icon)
+            if is_root:
+                win.after(450, _force_win32_taskbar_icon)
+        except Exception:
+            pass
+    if not (sys.platform.startswith("win") and ico_applied):
+        try:
+            ico64 = get_app_badge_icon_photo(64)
+            ico32 = get_app_badge_icon_photo(32)
+            win._win_icon_refs = (ico64, ico32)
+            win.iconphoto(bool(is_root), ico64, ico32)
+        except Exception:
+            pass
     if not is_root:
         try:
             win.after(0, lambda w=win: apply_dialog_theme(w))
