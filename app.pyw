@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.94"
+APP_VERSION = "v1.0.95"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -9306,6 +9306,8 @@ class App(tk.Tk):
             self._apply_startup_source(startup_source, startup_target)
             self.after(220, lambda: bring_window_to_front(self))
 
+        self.after(250, self._start_live_handoff_watcher)
+
     def _apply_ttk_theme(self, mode: str):
         is_dark = (mode == "dark")
         p = THEME_PALETTES["dark" if is_dark else "light"]
@@ -15817,6 +15819,86 @@ class App(tk.Tk):
         self.generate_preview(explicit_files=valid_paths, handoff_label="Datei-Suchmaschine")
         try:
             self.after(60, lambda: bring_window_to_front(self))
+        except Exception:
+            pass
+
+    def _start_live_handoff_watcher(self):
+        """Registriert dieses offene Fenster für erneute Übergaben aus Datei-Suchmaschine Pro (kein doppeltes Fenster)."""
+        import tempfile
+        import atexit
+        tmp_dir = Path(tempfile.gettempdir())
+        self._live_pid_file = tmp_dir / "7ordner_pro_live_pid.json"
+        self._live_handoff_file = tmp_dir / "7ordner_pro_live_handoff.json"
+        self._my_pid = os.getpid()
+
+        def _write_pid():
+            try:
+                self._live_pid_file.write_text(
+                    json.dumps({"pid": self._my_pid, "ts": time.time()}),
+                    encoding="utf-8",
+                )
+            except Exception:
+                pass
+
+        def _cleanup_pid():
+            try:
+                if self._live_pid_file.exists():
+                    data = json.loads(self._live_pid_file.read_text(encoding="utf-8"))
+                    if data.get("pid") == self._my_pid:
+                        self._live_pid_file.unlink(missing_ok=True)
+            except Exception:
+                pass
+
+        _write_pid()
+        atexit.register(_cleanup_pid)
+        self._last_pid_heartbeat = time.monotonic()
+        self.after(350, self._poll_live_handoff)
+
+    def _poll_live_handoff(self):
+        try:
+            if not self.winfo_exists():
+                return
+        except Exception:
+            return
+        try:
+            now = time.monotonic()
+            if (now - getattr(self, "_last_pid_heartbeat", 0.0)) >= 5.0:
+                self._last_pid_heartbeat = now
+                self._live_pid_file.write_text(
+                    json.dumps({"pid": self._my_pid, "ts": time.time()}),
+                    encoding="utf-8",
+                )
+            hf = getattr(self, "_live_handoff_file", None)
+            if hf and hf.is_file():
+                claimed = hf.with_name(f"7ordner_pro_claimed_{int(time.time() * 1000)}.json")
+                try:
+                    os.replace(str(hf), str(claimed))
+                except OSError:
+                    claimed = None
+                if claimed and claimed.is_file():
+                    try:
+                        payload = json.loads(claimed.read_text(encoding="utf-8"))
+                        if payload.get("paths"):
+                            self.load_handoff_file(claimed)
+                        elif payload.get("folder_path"):
+                            f_dir = str(payload.get("folder_path") or "").strip()
+                            t_dir = str(payload.get("target_dir") or "").strip()
+                            if f_dir and os.path.isdir(f_dir):
+                                self._apply_startup_source(f_dir, t_dir or None)
+                                handoff_theme = str(payload.get("theme") or "").strip().lower()
+                                if handoff_theme in ("light", "dark") and handoff_theme != self.theme_mode:
+                                    self.apply_theme(handoff_theme, save=True)
+                                self.generate_preview()
+                                self.after(60, lambda: bring_window_to_front(self))
+                    finally:
+                        try:
+                            claimed.unlink(missing_ok=True)
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        try:
+            self.after(350, self._poll_live_handoff)
         except Exception:
             pass
 
