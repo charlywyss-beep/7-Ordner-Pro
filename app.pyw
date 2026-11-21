@@ -140,7 +140,7 @@ HISTORY_FILE = DATA_DIR / "sort_history.json"
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
 CUSTOM_RULES_FILE = DATA_DIR / "custom_rules.json"
 SECURITY_FILE = DATA_DIR / "security_config.json"
-APP_VERSION = "v1.0.97"
+APP_VERSION = "v1.0.98"
 
 _DEFAULT_SALT_HEX = "376f72646e65725f64656661756c745f73616c7432303236"
 _APP_GUARD_HMAC_KEY = b"7-Ordner-Pro-IT-Guard-Integrity-2026"
@@ -15634,6 +15634,8 @@ class App(tk.Tk):
                 extra_button_text="📂 Im Explorer öffnen",
                 extra_button_command=lambda: self.open_target_explorer(explorer_target),
             )
+            if eff_mode == "move" and progress_state["transaction_items"]:
+                self._prompt_cleanup_empty_source_dirs(progress_state["transaction_items"], explorer_target)
             return
 
         # Vollständige Ausführung: Übergang zu Schritt 3 & Zielordner öffnen
@@ -15672,7 +15674,100 @@ class App(tk.Tk):
                 text="Die ausgewählten Elemente wurden direkt in die neuen Ordner verschoben. Bei Bedarf können Sie den Vorgang einfach rückgängig machen."
             )
         self.show_step3()
+        if eff_mode == "move" and progress_state["transaction_items"]:
+            self._prompt_cleanup_empty_source_dirs(progress_state["transaction_items"], explorer_target)
         self.open_target_explorer(explorer_target)
+
+    def _is_dir_effectively_empty(self, folder: Path) -> bool:
+        """Prüft, ob ein Ordner komplett leer ist (oder nur desktop.ini / thumbs.db enthält)."""
+        try:
+            if not folder.is_dir():
+                return False
+            with os.scandir(folder) as it:
+                for ent in it:
+                    if ent.name.lower() in ("desktop.ini", "thumbs.db"):
+                        continue
+                    return False
+            return True
+        except Exception:
+            return False
+
+    def _prompt_cleanup_empty_source_dirs(self, tx_items: list[dict], explorer_target: Path | str | None = None):
+        """Prüft nach dem Verschieben, ob Quellordner jetzt leer sind, und bietet an, sie sicher in den Papierkorb zu legen."""
+        protected_names = {
+            "desktop", "documents", "dokumente", "downloads", "pictures", "bilder",
+            "videos", "music", "musik", "onedrive", "users", "benutzer", "windows",
+            "program files", "program files (x86)", "serien", "filme", "plex",
+        }
+        try:
+            tgt_norm = os.path.normcase(os.path.abspath(str(explorer_target))) if explorer_target else ""
+        except Exception:
+            tgt_norm = ""
+
+        candidates: dict[str, Path] = {}
+        for rec in (tx_items or []):
+            src_str = rec.get("src") or ""
+            if not src_str:
+                continue
+            parent = Path(src_str).parent
+            if not parent or parent == parent.parent:
+                continue
+            if is_network_path(parent):
+                continue
+            norm_p = os.path.normcase(os.path.abspath(str(parent)))
+            if norm_p in candidates:
+                continue
+            if tgt_norm and (norm_p == tgt_norm or tgt_norm.startswith(norm_p + os.sep)):
+                continue
+            if parent.name.lower() in protected_names:
+                continue
+            if self._is_dir_effectively_empty(parent):
+                candidates[norm_p] = parent
+
+        empty_dirs = sorted(candidates.values(), key=lambda p: str(p).lower())
+        if not empty_dirs:
+            return
+
+        cnt = len(empty_dirs)
+        preview_lines = "\n".join(f"• {p}" for p in empty_dirs[:8])
+        if cnt > 8:
+            preview_lines += f"\n… und {cnt - 8} weitere"
+
+        headline = (
+            "1 Quellordner ist jetzt leer – in den Papierkorb verschieben?"
+            if cnt == 1
+            else f"{cnt} Quellordner sind jetzt leer – in den Papierkorb verschieben?"
+        )
+        subline = (
+            f"{preview_lines}\n\n"
+            "Hinweis: Es werden nur wirklich leere Ordner sicher in den Windows-Papierkorb verschoben."
+        )
+        ok = self.confirm_action(
+            title="Leere Quellordner aufräumen",
+            headline=headline,
+            subline=subline,
+            confirm_text="In Papierkorb verschieben",
+            cancel_text="Behalten",
+        )
+        if not ok:
+            return
+
+        removed = 0
+        for p in empty_dirs:
+            try:
+                if self._is_dir_effectively_empty(p):
+                    self._move_path_to_trash(p)
+                    removed += 1
+            except Exception as exc:
+                print(f"Leerer Ordner konnte nicht entfernt werden ({p}): {exc}")
+
+        if removed > 0:
+            self.show_notice(
+                "Leere Ordner aufgeräumt",
+                f"✓ {removed} leere{'r' if removed == 1 else ''} Quellordner in den Papierkorb verschoben.",
+                kind="success",
+                auto_close_ms=2500,
+            )
 
     def revert_last_transaction(self):
         if not HISTORY_FILE.exists():
